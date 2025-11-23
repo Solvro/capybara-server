@@ -1,3 +1,8 @@
+# Capybara Server
+
+Logic for multiplayer game
+Run with capybara-client to test all functionalities
+
 # Welcome to Colyseus!
 
 This project has been created using [⚔️ `create-colyseus-app`](https://github.com/colyseus/create-colyseus-app/) - an npm init template for kick starting a Colyseus project in TypeScript.
@@ -7,6 +12,9 @@ This project has been created using [⚔️ `create-colyseus-app`](https://githu
 ## :crossed_swords: Usage
 
 ```
+git clone
+npm i
+npm test
 npm start
 ```
 
