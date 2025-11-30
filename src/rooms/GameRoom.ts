@@ -34,12 +34,23 @@ export class GameRoom extends Room<RoomState> {
     console.log(client.sessionId, "joined!");
   }
 
-  onLeave(client: Client, consented: boolean) {
-    this.broadcast("onRemovePlayer", {
-      playerName: this.state.playerState.getPlayerName(client.sessionId),
-    });
-    this.state.despawnPlayer(client.sessionId);
-    console.log(client.sessionId, "left!");
+  async onLeave(client: Client, consented: boolean) {
+    try {
+      if (consented) {
+        throw new Error("consented leave");
+      }
+
+      // allow disconnected client to reconnect into this room until 20 seconds
+      await this.allowReconnection(client, 20);
+      console.log(client.sessionId, "reconnected!");
+
+    } catch (e) {
+      this.broadcast("onRemovePlayer", {
+        playerName: this.state.playerState.getPlayerName(client.sessionId),
+      });
+      this.state.despawnPlayer(client.sessionId);
+      console.log(client.sessionId, "left!");
+    }
   }
 
   onDispose() {
