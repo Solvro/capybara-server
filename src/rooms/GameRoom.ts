@@ -42,14 +42,12 @@ export class GameRoom extends Room<RoomState> {
 
       // allow disconnected client to reconnect into this room until 20 seconds
       await this.allowReconnection(client, 20);
-      console.log(client.sessionId, "reconnected!");
 
     } catch (e) {
       this.broadcast("onRemovePlayer", {
         playerName: this.state.playerState.getPlayerName(client.sessionId),
       });
       this.state.despawnPlayer(client.sessionId);
-      console.log(client.sessionId, "left!");
     }
   }
 
