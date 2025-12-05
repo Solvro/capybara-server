@@ -1,6 +1,7 @@
 import { type, Schema, ArraySchema } from "@colyseus/schema";
 import { Position } from "./Position.js";
 import { PlayerState } from "./PlayerState";
+import { CrateState } from "./CrateState.js";
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
@@ -88,6 +89,8 @@ export class RoomState extends Schema {
 
   @type(PlayerState) playerState: PlayerState = new PlayerState();
 
+  @type(CrateState) crateState: CrateState = new CrateState();
+
   getCellValue(x: number, y: number): number {
     return this.grid[y * this.width + x];
   }
@@ -104,11 +107,17 @@ export class RoomState extends Schema {
     return array2D;
   }
 
-  isWalkable(x: number, y: number): boolean {
+  isWalkableForPlayer(x: number, y: number): boolean {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return false;
     }
     return this.getCellValue(x, y) === 0;
+  }
+
+  isWalkableForCrate(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    const cell = this.getCellValue(x, y);
+    return cell === 0 || cell === 2; 
   }
 
   spawnNewPlayer(sessionId: string, name: string = null) {
@@ -126,6 +135,7 @@ export class RoomState extends Schema {
 
   onRoomDispose() {
     this.playerState.onRoomDispose();
+    this.crateState.onRoomDispose();
   }
 
   movePlayer(sessionId: string, deltaX: number, deltaY: number): boolean {
@@ -133,7 +143,14 @@ export class RoomState extends Schema {
     const newX = player.position.x + deltaX;
     const newY = player.position.y + deltaY;
 
-    if (this.isWalkable(newX, newY)) {
+    if (this.isWalkableForPlayer(newX, newY)) {
+      player.position.x = newX;
+      player.position.y = newY;
+      return true;
+    }
+
+    const crate = this.crateState.getCrateAt(newX, newY);
+    if (crate && this.moveCrate(crate.id, deltaX, deltaY)) {
       player.position.x = newX;
       player.position.y = newY;
       return true;
@@ -155,6 +172,13 @@ export class RoomState extends Schema {
           sessionId: player.sessionId,
         };
       }),
+      crates: Array.from(this.crateState.crates.values()).map((crate) => {
+        return {
+          crateId: crate.id,
+          x: crate.position.x,
+          y: crate.position.y,
+        };
+      }),
     };
   }
 
@@ -172,5 +196,46 @@ export class RoomState extends Schema {
 
   getPlayerName(sessionId: string): string {
     return this.playerState.getPlayerName(sessionId);
+  }
+
+  spawnCrate(x: number, y:number) {
+    this.crateState.createCrate(x, y);
+  }
+
+  despawnCrate(id: string) {
+    this.crateState.removeCrate(id);
+  }
+
+  moveCrate(crateId: string, dx: number, dy: number): boolean {
+  const crate = this.crateState.crates.get(crateId);
+  if (!crate) return false;
+
+  const targetX = crate.position.x + dx;
+  const targetY = crate.position.y + dy;
+
+  if (!this.isWalkableForCrate(targetX, targetY)) return false;
+
+  const nextCrate = this.crateState.getCrateAt(targetX, targetY);
+  if (nextCrate && !this.moveCrate(nextCrate.id, dx, dy)) return false;
+
+  const oldX = crate.position.x;
+  const oldY = crate.position.y;
+  this.grid[oldY * this.width + oldX] = 0;
+
+  crate.position.x = targetX;
+  crate.position.y = targetY;
+
+  this.grid[targetY * this.width + targetX] = 2; 
+  return true;
+}
+
+  spawnInitialCrates() {
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (this.getCellValue(x, y) === 2) {
+          this.spawnCrate(x, y);
+        }
+      }
+    }
   }
 }

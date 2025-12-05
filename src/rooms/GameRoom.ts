@@ -6,6 +6,7 @@ export class GameRoom extends Room<RoomState> {
   state = new RoomState();
 
   onCreate(options: any) {
+    this.state.spawnInitialCrates();
     this.onMessage("move", (client, message) => {
       if (this.state.movePlayer(client.sessionId, message.x, message.y)) {
         this.broadcast("positionUpdate", {
@@ -18,6 +19,22 @@ export class GameRoom extends Room<RoomState> {
 
     this.onMessage("getMapInfo", (client) => {
       client.send("mapInfo", this.state.getMapInfo());
+    });
+
+    this.onMessage("pushCrate", (client, data) => {
+      const player = this.state.playerState.getPlayerName(client.sessionId);
+      const crate = this.state.crateState.crates.get(data.crateId);
+
+      if (!player || !crate) return;
+
+      if (this.state.moveCrate(crate.id, data.dx, data.dy)) {
+        this.broadcast("crateUpdate", {
+          crateId: crate.id,
+          position: { x: crate.position.x, y: crate.position.y},
+        })
+
+        this.broadcast("mapInfo", this.state.getMapInfo());
+      }
     });
   }
 
