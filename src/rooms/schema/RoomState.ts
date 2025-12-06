@@ -158,18 +158,6 @@ export class RoomState extends Schema {
     };
   }
 
-  getGrid() {
-    return this.getGridAs2DArray();
-  }
-
-  getWidth() {
-    return this.width;
-  }
-
-  getHeight() {
-    return this.height;
-  }
-
   getPlayerName(sessionId: string): string | null {
     return this.playerState.getPlayerName(sessionId);
   }

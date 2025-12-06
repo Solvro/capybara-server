@@ -1,15 +1,21 @@
-import { Room, Client } from "@colyseus/core";
+import { Room, Client, Deferred } from "@colyseus/core";
 import { RoomState } from "./schema/RoomState";
 
 type ClientWithMeta = Client & {
   userData?: {
     kicked?: boolean;
+    takenOver?: boolean;
   };
 };
 
 export class GameRoom extends Room<RoomState> {
   maxClients = 4;
   state = new RoomState();
+  
+  // Track pending reconnections so we can cancel them on session takeover
+  private pendingReconnections = new Map<string, Deferred>();
+  // Track sessions that were taken over (to prevent cleanup in onLeave)
+  private takenOverSessions = new Set<string>();
 
   onCreate(options: any) {
     this.onMessage("move", (client, message) => {
@@ -50,13 +56,24 @@ export class GameRoom extends Room<RoomState> {
 
         console.log(`[JOIN] Taking over session. Saved state: pos=(${savedPosition.x},${savedPosition.y}), index=${savedIndex}`);
 
-        // Kick the old client if still connected
+        // Mark this session as taken over BEFORE cancelling reconnection
+        // This prevents onLeave cleanup from running
+        this.takenOverSessions.add(existingSessionId);
+
+        // Cancel any pending reconnection for the old session
+        const pendingReconnect = this.pendingReconnections.get(existingSessionId);
+        if (pendingReconnect) {
+          pendingReconnect.reject(new Error("Session taken over by new login"));
+          this.pendingReconnections.delete(existingSessionId);
+        }
+
+        // Mark old client as taken over (if still in clients list)
         const oldClient = this.clients.find((c) => c.sessionId === existingSessionId) as
           | ClientWithMeta
           | undefined;
 
         if (oldClient != null) {
-          oldClient.userData = { ...(oldClient.userData ?? {}), kicked: true };
+          oldClient.userData = { ...(oldClient.userData ?? {}), kicked: true, takenOver: true };
           oldClient.send("error", {
             code: "new_login",
             message: "New login detected from another tab. You have been disconnected.",
@@ -116,14 +133,43 @@ export class GameRoom extends Room<RoomState> {
     const meta = client as ClientWithMeta;
 
     try {
+      // If session was taken over, don't do anything - the new client has the player
+      if (this.takenOverSessions.has(client.sessionId) || meta.userData?.takenOver) {
+        console.log(client.sessionId, "session was taken over, skipping cleanup");
+        this.takenOverSessions.delete(client.sessionId);
+        return;
+      }
+
       if (consented || meta.userData?.kicked) {
         throw new Error("skip_reconnect");
       }
 
-      await this.allowReconnection(client, 20);
+      // Create a deferred promise we can cancel if session is taken over
+      const deferred = new Deferred();
+      this.pendingReconnections.set(client.sessionId, deferred);
+
+      // Race between allowReconnection and our cancellation
+      const reconnectionPromise = this.allowReconnection(client, 20);
+      
+      // If deferred is rejected, allowReconnection should also fail
+      await Promise.race([
+        reconnectionPromise,
+        deferred.promise,
+      ]);
+      
+      this.pendingReconnections.delete(client.sessionId);
       console.log(client.sessionId, "reconnected!", String(new Date().toISOString().slice(11, 19)));
       return;
     } catch (error) {
+      this.pendingReconnections.delete(client.sessionId);
+      
+      // Check again if taken over (might have happened during reconnection wait)
+      if (this.takenOverSessions.has(client.sessionId) || meta.userData?.takenOver) {
+        console.log(client.sessionId, "session was taken over during reconnect wait, skipping cleanup");
+        this.takenOverSessions.delete(client.sessionId);
+        return;
+      }
+      
       const playerName = this.state.playerState.getPlayerName(client.sessionId);
       if (playerName) {
         this.broadcast("onRemovePlayer", {
