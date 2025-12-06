@@ -2,12 +2,14 @@ import { type, Schema, ArraySchema } from "@colyseus/schema";
 import { Position } from "./Position.js";
 import { PlayerState } from "./PlayerState";
 import { CrateState } from "./CrateState.js";
+import { ButtonState } from "./ButtonState.js";
+import { DoorState } from "./DoorState.js";
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
-    0,
-    0,
-    0,
+    1,
+    1,
+    1,
     0,
     0,
     0,
@@ -88,8 +90,9 @@ export class RoomState extends Schema {
   );
 
   @type(PlayerState) playerState: PlayerState = new PlayerState();
-
   @type(CrateState) crateState: CrateState = new CrateState();
+  @type(DoorState) doorState: DoorState = new DoorState();
+  @type(ButtonState) buttonState: ButtonState = new ButtonState();
 
   getCellValue(x: number, y: number): number {
     return this.grid[y * this.width + x];
@@ -146,6 +149,7 @@ export class RoomState extends Schema {
     if (this.isWalkableForPlayer(newX, newY)) {
       player.position.x = newX;
       player.position.y = newY;
+      this.checkButtonPress(newX, newY);
       return true;
     }
 
@@ -155,6 +159,7 @@ export class RoomState extends Schema {
       player.position.y = newY;
       return true;
     }
+
     return false;
   }
 
@@ -179,6 +184,17 @@ export class RoomState extends Schema {
           y: crate.position.y,
         };
       }),
+      doors: Array.from(this.doorState.doors.values()).map(door => ({
+        doorId: door,
+        x: door.position.x,
+        y: door.position.y,
+        open: door.open,
+      })),
+      buttons: Array.from(this.buttonState.buttons.values()).map(button => ({
+        buttonId: button.id,
+        x: button.position.x,
+        y: button.position.y,
+      })),
     };
   }
 
@@ -226,6 +242,7 @@ export class RoomState extends Schema {
   crate.position.y = targetY;
 
   this.grid[targetY * this.width + targetX] = 2; 
+  this.checkButtonPress(targetX, targetY);
   return true;
 }
 
@@ -238,4 +255,34 @@ export class RoomState extends Schema {
       }
     }
   }
+
+  spawnInitialDoorAndButtons() {
+    const door = this.doorState.createDoor("red", 3, 0);
+    this.buttonState.createButton("redBtn", 4, 1, door.id); 
+  }
+
+checkButtonPress(x: number, y: number) {
+  const doorsToUpdate: {doorId: string, open: boolean}[] = [];
+
+  for (const button of this.buttonState.buttons.values()) {
+    if (button.position.x === x && button.position.y === y) {
+      const playerOnButton = [...this.playerState.players.values()]
+        .some(p => p.position.x === x && p.position.y === y);
+
+      const crateOnButton = [...this.crateState.crates.values()]
+        .some(c => c.position.x === x && c.position.y === y);
+
+      const door = this.doorState.doors.get(button.doorId);
+      if (!door) continue;
+
+      const shouldOpen = playerOnButton || crateOnButton;
+      if (door.open !== shouldOpen) {
+        door.open = shouldOpen;
+        doorsToUpdate.push({ doorId: door.id, open: door.open });
+      }
+    }
+  }
+
+  return doorsToUpdate;
+}
 }

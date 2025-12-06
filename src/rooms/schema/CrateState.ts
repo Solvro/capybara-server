@@ -1,6 +1,11 @@
-import { Crate } from "./Crate";
 import { type, Schema, MapSchema, SetSchema } from "@colyseus/schema";
 import { Position } from "./Position";
+
+export class Crate extends Schema {
+  @type("string") id: string;
+  @type(Position) position: Position;
+}
+
 
 export class CrateState extends Schema {
   @type({ map: Crate })

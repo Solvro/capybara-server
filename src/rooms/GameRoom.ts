@@ -7,13 +7,30 @@ export class GameRoom extends Room<RoomState> {
 
   onCreate(options: any) {
     this.state.spawnInitialCrates();
+    this.state.spawnInitialDoorAndButtons();
     this.onMessage("move", (client, message) => {
       if (this.state.movePlayer(client.sessionId, message.x, message.y)) {
         this.broadcast("positionUpdate", {
           playerName: this.state.playerState.getPlayerName(client.sessionId),
-          position: this.state.playerState.players.get(client.sessionId)
-            .position,
+          position: this.state.playerState.players.get(client.sessionId).position,
         });
+
+        const doorsToUpdate = this.state.checkButtonPress(
+          this.state.playerState.players.get(client.sessionId).position.x,
+          this.state.playerState.players.get(client.sessionId).position.y
+        );
+
+        doorsToUpdate.forEach(d =>
+          this.broadcast("doorUpdate", {
+            doorId: d.doorId,
+            position: { 
+              x: this.state.doorState.doors.get(d.doorId).position.x,
+              y: this.state.doorState.doors.get(d.doorId).position.y
+            },
+            open: d.open,
+          })
+        );
+        this.broadcast("mapInfo", this.state.getMapInfo());
       }
     });
 
@@ -72,4 +89,5 @@ export class GameRoom extends Room<RoomState> {
     this.state.onRoomDispose();
     console.log("room", this.roomId, "disposing...");
   }
+
 }
