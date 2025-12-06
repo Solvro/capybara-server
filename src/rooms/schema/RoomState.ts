@@ -1,79 +1,81 @@
 import { type, Schema, ArraySchema } from "@colyseus/schema";
 import { Position } from "./Position.js";
 import { PlayerState } from "./PlayerState";
+import { raycastToWall, Cell } from "../laserRaycast.js";
+
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    1,
     2,
     2,
     2,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2
   );
 
   @type("number") width: number = 10;
@@ -172,5 +174,79 @@ export class RoomState extends Schema {
 
   getPlayerName(sessionId: string): string {
     return this.playerState.getPlayerName(sessionId);
+  }
+
+  applyLaser(x: number, y: number, ownerId: string) {
+    const index = y * this.width + x;
+    const value = this.grid[index];
+
+    if (value === 2) {
+
+      this.grid[index] = 0;
+
+      return { x, y };
+    }
+  }
+  applyLaserAt(x: number, y: number) {
+    const result: { destroyed?: boolean; x?: number; y?: number } = {};
+
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      result.destroyed = false;
+      return result;
+    }
+
+    const idx = y * this.width + x;
+    const before = this.grid[idx];
+    console.log(`[applyLaserAt] checking (${x},${y}) idx=${idx} before=${before}`);
+
+    if (before === 2) {
+      this.grid[idx] = 0;
+      const after = this.grid[idx];
+      console.log(`[applyLaserAt] destroyed box at (${x},${y}) idx=${idx} after=${after}`);
+      result.destroyed = true;
+      result.x = x;
+      result.y = y;
+    } else {
+      console.log(`[applyLaserAt] no box to destroy at (${x},${y}) idx=${idx} value=${before}`);
+      result.destroyed = false;
+    }
+
+    return result;
+  }
+
+  applyLaserRay(startX: number, startY: number, dirX: number, dirY: number) {
+    const plainGrid = Array.from(this.grid as any) as number[];
+    const cells: Cell[] = raycastToWall(
+      plainGrid,
+      this.width,
+      this.height,
+      startX,
+      startY,
+      dirX,
+      dirY,
+    );
+
+    console.log(`[applyLaserRay] start=(${startX},${startY}) dir=(${dirX},${dirY}) cells=`, cells);
+
+    const hits: { type: "box" | "wall"; x: number; y: number }[] = [];
+
+    for (const c of cells) {
+      console.log(`[applyLaserRay] checking cell (${c.x},${c.y}) value=${c.value}`);
+      if (c.value === 2) {
+        const res = this.applyLaserAt(c.x, c.y);
+        console.log(`[applyLaserRay] applyLaserAt result:`, res);
+        if (res.destroyed) {
+          hits.push({ type: "box", x: c.x, y: c.y });
+          // break;  <-- REMOVED: allow destroying multiple boxes
+        }
+      }
+      if (c.value === 1) {
+        hits.push({ type: "wall", x: c.x, y: c.y });
+        break;
+      }
+    }
+
+    console.log(`[applyLaserRay] hits:`, hits);
+    return { hits };
   }
 }

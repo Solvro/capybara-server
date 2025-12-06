@@ -7,6 +7,7 @@ export class GameRoom extends Room<RoomState> {
 
   onCreate(options: any) {
     this.onMessage("move", (client, message) => {
+      console.log("moved");
       if (this.state.movePlayer(client.sessionId, message.x, message.y)) {
         this.broadcast("positionUpdate", {
           playerName: this.state.playerState.getPlayerName(client.sessionId),
@@ -18,6 +19,25 @@ export class GameRoom extends Room<RoomState> {
 
     this.onMessage("getMapInfo", (client) => {
       client.send("mapInfo", this.state.getMapInfo());
+    });
+
+    this.onMessage("fire_laser", (client, payload: any) => {
+    
+      const start = payload && payload.start ? payload.start : { x: 1, y: 1 };
+      const dir = payload && payload.dir ? payload.dir : { dx: 1, dy: 0 };
+
+      const result = this.state.applyLaserRay(start.x, start.y, dir.dx, dir.dy);
+
+      this.broadcast("laser_fired", { start, dir, color: payload?.color || "red", hits: result.hits });
+
+
+      if (result.hits && result.hits.length > 0) {
+        const destroyedHits = result.hits.filter((h: any) => h.type === "box");
+        if (destroyedHits.length > 0) {
+          this.broadcast("box_destroyed", { hits: destroyedHits, color: payload?.color || "red" });
+        }
+      }
+      
     });
   }
 
