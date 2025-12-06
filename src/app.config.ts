@@ -12,7 +12,7 @@ export default config({
     /**
      * Define your room handlers:
      */
-    gameServer.define("game_room", GameRoom);
+    gameServer.define("game_room", GameRoom).enableRealtimeListing();
   },
 
   initializeExpress: (app) => {

@@ -170,7 +170,7 @@ export class RoomState extends Schema {
     return this.height;
   }
 
-  getPlayerName(sessionId: string): string {
+  getPlayerName(sessionId: string): string | null {
     return this.playerState.getPlayerName(sessionId);
   }
 }
