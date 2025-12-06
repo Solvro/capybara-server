@@ -22,13 +22,9 @@ export function raycastToWall(
     const val = grid[idx];
     cells.push({ x, y, value: val });
 
-    if (val === 1) {
+    if (val === 1 || val === 2) {
       break;
     }
-
-    // if (val === 2) {
-    //   break;
-    // }
 
     x += stepX;
     y += stepY;
