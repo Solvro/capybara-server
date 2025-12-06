@@ -11,8 +11,11 @@ export default config({
   initializeGameServer: (gameServer) => {
     /**
      * Define your room handlers:
+     * filterBy allows multiple room instances based on gameId option
      */
-    gameServer.define("game_room", GameRoom).enableRealtimeListing();
+    gameServer.define("game_room", GameRoom)
+      .filterBy(["gameId"])
+      .enableRealtimeListing();
   },
 
   initializeExpress: (app) => {

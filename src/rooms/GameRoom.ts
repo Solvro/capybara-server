@@ -16,8 +16,14 @@ export class GameRoom extends Room<RoomState> {
   private pendingReconnections = new Map<string, Deferred>();
   // Track sessions that were taken over (to prevent cleanup in onLeave)
   private takenOverSessions = new Set<string>();
+  // Store the room's unique identifier
+  private gameId: string = "default";
 
   onCreate(options: any) {
+    // Store the gameId for this room instance
+    this.gameId = options?.gameId ?? "default";
+    console.log(`[ROOM] Created room with gameId: "${this.gameId}"`);
+
     this.onMessage("move", (client, message) => {
       if (this.state.movePlayer(client.sessionId, message.x, message.y)) {
         const playerName = this.state.playerState.getPlayerName(client.sessionId);
@@ -44,20 +50,34 @@ export class GameRoom extends Room<RoomState> {
     console.log(`[JOIN] Client ${client.sessionId} wants name "${desiredName}"`);
     console.log(`[JOIN] Existing session for this name: ${existingSessionId}`);
 
-    // Check if there's an existing player with this name to take over
+    // Check if there's an existing player with this name
     if (existingSessionId !== null && existingSessionId !== client.sessionId) {
+      // Check if the old client is still actively connected
+      const oldClient = this.clients.find((c) => c.sessionId === existingSessionId);
+      
+      if (oldClient != null) {
+        // Name is taken by an ACTIVE player - reject this join
+        console.log(`[JOIN] Name "${desiredName}" is taken by active client ${existingSessionId}, rejecting`);
+        client.send("error", {
+          code: "name_taken",
+          message: `The name "${desiredName}" is already taken in this room.`,
+        });
+        client.leave(1000); // Close with custom code
+        return;
+      }
+      
+      // Old client is disconnected (in reconnection window) - allow session takeover
       const existingPlayer = this.state.playerState.players.get(existingSessionId);
       
       if (existingPlayer != null) {
-        // Save the old player's state before kicking
+        // Save the old player's state before taking over
         const savedPosition = { x: existingPlayer.position.x, y: existingPlayer.position.y };
         const savedIndex = existingPlayer.index;
         const savedName = existingPlayer.name;
 
-        console.log(`[JOIN] Taking over session. Saved state: pos=(${savedPosition.x},${savedPosition.y}), index=${savedIndex}`);
+        console.log(`[JOIN] Taking over disconnected session. Saved state: pos=(${savedPosition.x},${savedPosition.y}), index=${savedIndex}`);
 
         // Mark this session as taken over BEFORE cancelling reconnection
-        // This prevents onLeave cleanup from running
         this.takenOverSessions.add(existingSessionId);
 
         // Cancel any pending reconnection for the old session
@@ -65,20 +85,6 @@ export class GameRoom extends Room<RoomState> {
         if (pendingReconnect) {
           pendingReconnect.reject(new Error("Session taken over by new login"));
           this.pendingReconnections.delete(existingSessionId);
-        }
-
-        // Mark old client as taken over (if still in clients list)
-        const oldClient = this.clients.find((c) => c.sessionId === existingSessionId) as
-          | ClientWithMeta
-          | undefined;
-
-        if (oldClient != null) {
-          oldClient.userData = { ...(oldClient.userData ?? {}), kicked: true, takenOver: true };
-          oldClient.send("error", {
-            code: "new_login",
-            message: "New login detected from another tab. You have been disconnected.",
-          });
-          oldClient.leave();
         }
 
         // Remove old player from state (but we saved position/index)
