@@ -1,4 +1,5 @@
-import { Room, Client } from "@colyseus/core";
+import { Client, Room } from "@colyseus/core";
+
 import { RoomState } from "./schema/RoomState";
 
 export class GameRoom extends Room<RoomState> {
@@ -18,6 +19,28 @@ export class GameRoom extends Room<RoomState> {
 
     this.onMessage("getMapInfo", (client) => {
       client.send("mapInfo", this.state.getMapInfo());
+    });
+
+    this.onMessage("toggle_laser", (client, payload: any) => {
+      console.log(
+        `[GameRoom] Received toggle_laser from ${client.sessionId}`,
+        payload,
+      );
+      const start = payload && payload.start ? payload.start : { x: 1, y: 1 };
+      const dir = payload && payload.dir ? payload.dir : { dx: 1, dy: 0 };
+      const color = payload?.color || "red";
+
+      const hits = this.state.toggleLaser(client.sessionId, start, dir, color);
+
+      // Legacy broadcast for ephemeral rendering
+      this.broadcast("laser_fired", { hits, color });
+
+      if (hits && hits.length > 0) {
+        const destroyedHits = hits.filter((h: any) => h.type === "box");
+        if (destroyedHits.length > 0) {
+          this.broadcast("box_destroyed", { hits: destroyedHits, color });
+        }
+      }
     });
   }
 
@@ -42,7 +65,6 @@ export class GameRoom extends Room<RoomState> {
 
       // allow disconnected client to reconnect into this room until 20 seconds
       await this.allowReconnection(client, 20);
-
     } catch (e) {
       this.broadcast("onRemovePlayer", {
         playerName: this.state.playerState.getPlayerName(client.sessionId),
