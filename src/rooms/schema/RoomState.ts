@@ -1,6 +1,7 @@
 import { type, Schema, ArraySchema } from "@colyseus/schema";
 import { Position } from "./Position.js";
 import { PlayerState } from "./PlayerState";
+import { Player } from "./Player.js";
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
@@ -128,17 +129,41 @@ export class RoomState extends Schema {
     this.playerState.onRoomDispose();
   }
 
-  movePlayer(sessionId: string, deltaX: number, deltaY: number): boolean {
+  attemptMove(player: Player, newX: number, newY: number): boolean {
+    if (!this.isWalkable(newX, newY)) {
+      return false;
+    }
+    player.position.x = newX;
+    player.position.y = newY;
+    return true;
+  }
+
+  movePlayer(sessionId: string, direction: "left" | "right" | "up" | "down"): boolean {
     const player = this.playerState.players.get(sessionId);
+    let deltaX = 0;
+    let deltaY = 0;
+
+    switch (direction) {
+      case "up":
+        deltaY = -1;
+        break;
+      case "down":
+        deltaY = 1;
+        break;
+      case "left":
+        deltaX = -1;
+        break;
+      case "right":
+        deltaX = 1;
+        break;
+      default:
+        return false;
+    }
+
     const newX = player.position.x + deltaX;
     const newY = player.position.y + deltaY;
 
-    if (this.isWalkable(newX, newY)) {
-      player.position.x = newX;
-      player.position.y = newY;
-      return true;
-    }
-    return false;
+    return this.attemptMove(player, newX, newY);
   }
 
   getMapInfo() {
