@@ -24,4 +24,8 @@ export class DoorState extends Schema {
     if (!door) return;
     door.open = open;
   }
+
+  onRoomDispose() {
+    this.doors.clear();
+  }
 }

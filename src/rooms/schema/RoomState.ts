@@ -120,9 +120,17 @@ export class RoomState extends Schema {
   isWalkableForCrate(x: number, y: number): boolean {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
     const cell = this.getCellValue(x, y);
+
+    // check if empty or wall occuppies
+    if (cell !== 0 && cell !== 2) return false;
+
     // check if player occupies
+    const playerOccupies = [...this.playerState.players.values()]
+      .some(p => p.position.x === x && p.position.y === y);
     
-    return cell === 0 || cell === 2; 
+    if (playerOccupies) return false;
+
+    return true;
   }
 
   spawnNewPlayer(sessionId: string, name: string = null) {
@@ -141,6 +149,8 @@ export class RoomState extends Schema {
   onRoomDispose() {
     this.playerState.onRoomDispose();
     this.crateState.onRoomDispose();
+    this.doorState.onRoomDispose();
+    this.buttonState.onRoomDispose();
   }
 
   movePlayer(sessionId: string, deltaX: number, deltaY: number): boolean {

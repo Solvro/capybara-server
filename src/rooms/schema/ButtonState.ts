@@ -19,4 +19,8 @@ export class ButtonState extends Schema {
     this.buttons.set(id, button);
     return button;
   }
+
+  onRoomDispose() {
+    this.buttons.clear();
+  }
 }
