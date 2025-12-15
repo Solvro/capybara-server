@@ -4,7 +4,7 @@ import { Position } from "./Position";
 export class Button extends Schema {
   @type("string") id: string;
   @type(Position) position: Position = new Position();
-  @type("string") doorId: string; // powiązane drzwi
+  @type("string") doorId: string; // related doors
 }
 
 export class ButtonState extends Schema {
