@@ -14,6 +14,13 @@ export class CrateState extends Schema {
   @type({ set: "number" })
   usedIds = new SetSchema<number>();
 
+  @type({map: "string"})
+  private positionToCrateId = new Map<string, string>(); // key: "x_y", value: crateId
+
+  private getPositionKey(x: number, y: number) : string {
+    return `${x}_${y}`;
+  }
+
   createCrate(x: number, y: number): Crate {
     let id = 0;
     while (this.usedIds.has(id)) {
@@ -28,6 +35,10 @@ export class CrateState extends Schema {
     crate.position.y = y;
 
     this.crates.set(crate.id, crate);
+
+    const key = this.getPositionKey(x, y);
+    this.positionToCrateId.set(key, crate.id);
+
     return crate;
   }
 
@@ -45,12 +56,17 @@ export class CrateState extends Schema {
   }
 
   getCrateAt(x: number, y: number) {
-    for (const crate of this.crates.values()) {
-        if(crate.position.x === x && crate.position.y === y) {
-            return crate;
-        }
-    }
-    return null;
+    const key = this.getPositionKey(x, y);
+    const crateId = this.positionToCrateId.get(key);
+    return crateId ? this.crates.get(crateId) : null;
+  }
+
+  moveCrateIndex(crate: Crate, oldX: number, oldY: number, newX: number, newY: number) {
+    const oldKey = this.getPositionKey(oldX, oldY);
+    this.positionToCrateId.delete(oldKey); // delete old mapping
+
+    const newKey = this.getPositionKey(newX, newY); 
+    this.positionToCrateId.set(newKey, crate.id); // add new mapping to crate
   }
 
 }

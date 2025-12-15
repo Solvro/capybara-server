@@ -120,6 +120,8 @@ export class RoomState extends Schema {
   isWalkableForCrate(x: number, y: number): boolean {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
     const cell = this.getCellValue(x, y);
+    // check if player occupies
+    
     return cell === 0 || cell === 2; 
   }
 
@@ -238,6 +240,8 @@ export class RoomState extends Schema {
   const oldY = crate.position.y;
   this.grid[oldY * this.width + oldX] = 0;
 
+  this.crateState.moveCrateIndex(crate, oldX, oldY, targetX, targetY);
+
   crate.position.x = targetX;
   crate.position.y = targetY;
 
@@ -261,28 +265,28 @@ export class RoomState extends Schema {
     this.buttonState.createButton("redBtn", 4, 1, door.id); 
   }
 
-checkButtonPress(x: number, y: number) {
-  const doorsToUpdate: {doorId: string, open: boolean}[] = [];
+  checkButtonPress(x: number, y: number) {
+    const doorsToUpdate: {doorId: string, open: boolean}[] = [];
 
-  for (const button of this.buttonState.buttons.values()) {
-    if (button.position.x === x && button.position.y === y) {
-      const playerOnButton = [...this.playerState.players.values()]
-        .some(p => p.position.x === x && p.position.y === y);
+    for (const button of this.buttonState.buttons.values()) {
+      if (button.position.x === x && button.position.y === y) {
+        const playerOnButton = [...this.playerState.players.values()]
+          .some(p => p.position.x === x && p.position.y === y);
 
-      const crateOnButton = [...this.crateState.crates.values()]
-        .some(c => c.position.x === x && c.position.y === y);
+        const crateOnButton = [...this.crateState.crates.values()]
+          .some(c => c.position.x === x && c.position.y === y);
 
-      const door = this.doorState.doors.get(button.doorId);
-      if (!door) continue;
+        const door = this.doorState.doors.get(button.doorId);
+        if (!door) continue;
 
-      const shouldOpen = playerOnButton || crateOnButton;
-      if (door.open !== shouldOpen) {
-        door.open = shouldOpen;
-        doorsToUpdate.push({ doorId: door.id, open: door.open });
+        const shouldOpen = playerOnButton || crateOnButton;
+        if (door.open !== shouldOpen) {
+          door.open = shouldOpen;
+          doorsToUpdate.push({ doorId: door.id, open: door.open });
+        }
       }
     }
-  }
 
   return doorsToUpdate;
-}
+  }
 }
