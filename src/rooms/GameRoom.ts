@@ -9,26 +9,50 @@ export class GameRoom extends Room<RoomState> {
     this.state.spawnInitialCrates();
     this.state.spawnInitialDoorAndButtons();
     this.onMessage("move", (client, message) => {
+      const player = this.state.playerState.players.get(client.sessionId);
+      if (!player) return;
+      
+      const oldX = player.position.x;
+      const oldY = player.position.y;
+
       if (this.state.movePlayer(client.sessionId, message.x, message.y)) {
+        const newX = player.position.x;
+        const newY = player.position.y;
+
         this.broadcast("positionUpdate", {
           playerName: this.state.playerState.getPlayerName(client.sessionId),
-          position: this.state.playerState.players.get(client.sessionId).position,
+          position: player.position,
         });
 
-        const doorsToUpdate = this.state.checkButtonPress(
-          this.state.playerState.players.get(client.sessionId).position.x,
-          this.state.playerState.players.get(client.sessionId).position.y
-        );
+        const movedCrates = this.state.crateState.getAndClearMovedCrates();
+        
+        const positionsToCheck = new Set<string>();
+        positionsToCheck.add(`${oldX}_${oldY}`); 
+        positionsToCheck.add(`${newX}_${newY}`);
 
-        doorsToUpdate.forEach(d =>
-          this.broadcast("doorUpdate", {
-            doorId: d.doorId,
-            position: { 
-              x: this.state.doorState.doors.get(d.doorId).position.x,
-              y: this.state.doorState.doors.get(d.doorId).position.y
-            },
-            open: d.open,
-          })
+        movedCrates.forEach(crate => {
+          this.broadcast("crateUpdate", {
+            crateId: crate.id,
+            position: crate.position
+          });
+          positionsToCheck.add(`${crate.position.x}_${crate.position.y}`);
+        })
+
+        const allDoorsToUpdate = new Map<string, { doorId: string, open: boolean }>();
+        
+        positionsToCheck.forEach(key => {
+            const [x, y] = key.split('_').map(Number);
+            const updates = this.state.checkButtonPress(x, y);
+            
+            updates.forEach(update => allDoorsToUpdate.set(update.doorId, update));
+        });
+
+        allDoorsToUpdate.forEach(d =>
+            this.broadcast("doorUpdate", {
+                doorId: d.doorId,
+                position: this.state.doorState.doors.get(d.doorId).position,
+                open: d.open,
+            })
         );
         this.broadcast("mapInfo", this.state.getMapInfo());
       }

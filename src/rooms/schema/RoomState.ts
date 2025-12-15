@@ -155,12 +155,16 @@ export class RoomState extends Schema {
 
   movePlayer(sessionId: string, deltaX: number, deltaY: number): boolean {
     const player = this.playerState.players.get(sessionId);
+
+    const oldX = player.position.x;
+    const oldY = player.position.y;
     const newX = player.position.x + deltaX;
     const newY = player.position.y + deltaY;
 
     if (this.isWalkableForPlayer(newX, newY)) {
       player.position.x = newX;
       player.position.y = newY;
+      this.checkButtonPress(oldX, oldY);
       this.checkButtonPress(newX, newY);
       return true;
     }
@@ -169,6 +173,8 @@ export class RoomState extends Schema {
     if (crate && this.moveCrate(crate.id, deltaX, deltaY)) {
       player.position.x = newX;
       player.position.y = newY;
+      this.checkButtonPress(oldX, oldY);
+      this.checkButtonPress(newX, newY);
       return true;
     }
 
@@ -255,8 +261,10 @@ export class RoomState extends Schema {
   crate.position.x = targetX;
   crate.position.y = targetY;
 
-  this.grid[targetY * this.width + targetX] = 2; 
+  this.checkButtonPress(oldX,oldY);
   this.checkButtonPress(targetX, targetY);
+
+  this.grid[targetY * this.width + targetX] = 2; 
   return true;
 }
 
@@ -278,25 +286,24 @@ export class RoomState extends Schema {
   checkButtonPress(x: number, y: number) {
     const doorsToUpdate: {doorId: string, open: boolean}[] = [];
 
-    for (const button of this.buttonState.buttons.values()) {
-      if (button.position.x === x && button.position.y === y) {
-        const playerOnButton = [...this.playerState.players.values()]
-          .some(p => p.position.x === x && p.position.y === y);
+    const button = this.buttonState.getButtonAt(x, y);
 
-        const crateOnButton = [...this.crateState.crates.values()]
-          .some(c => c.position.x === x && c.position.y === y);
+    if (button) {
+      const playerOnButton = [...this.playerState.players.values()]
+      .some(p => p.position.x === x && p.position.y === y);
 
-        const door = this.doorState.doors.get(button.doorId);
-        if (!door) continue;
+    const crateOnButton = !!this.crateState.getCrateAt(x, y);
 
-        const shouldOpen = playerOnButton || crateOnButton;
-        if (door.open !== shouldOpen) {
-          door.open = shouldOpen;
-          doorsToUpdate.push({ doorId: door.id, open: door.open });
-        }
+    const door = this.doorState.doors.get(button.doorId);
+    if (!door) return; 
+
+    const shouldOpen = playerOnButton || crateOnButton;
+    if (door.open !== shouldOpen) {
+      door.open = shouldOpen;
+      doorsToUpdate.push({ doorId: door.id, open: door.open });
       }
     }
+    return doorsToUpdate;
+ }
 
-  return doorsToUpdate;
-  }
 }

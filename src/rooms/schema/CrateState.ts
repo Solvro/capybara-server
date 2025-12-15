@@ -11,21 +11,18 @@ export class CrateState extends Schema {
   @type({ map: Crate })
   crates = new MapSchema<Crate>();
 
-  @type({ set: "number" })
-  usedIds = new SetSchema<number>();
+  private usedIds = new Set<number>();
+  private nextAvailableId: number = 0;
 
-  @type({map: "string"})
   private positionToCrateId = new Map<string, string>(); // key: "x_y", value: crateId
+  private movedCrateIds = new Set<string>();
 
   private getPositionKey(x: number, y: number) : string {
     return `${x}_${y}`;
   }
 
   createCrate(x: number, y: number): Crate {
-    let id = 0;
-    while (this.usedIds.has(id)) {
-      id++;
-    }
+    const id = this.nextAvailableId++;
     this.usedIds.add(id);
 
     const crate = new Crate();
@@ -46,7 +43,9 @@ export class CrateState extends Schema {
     const crate = this.crates.get(id);
     if (!crate) return;
 
-    this.usedIds.delete(Number(id));
+    const key = this.getPositionKey(crate.position.x, crate.position.y);
+    this.positionToCrateId.delete(key);
+
     this.crates.delete(id);
   }
 
@@ -68,5 +67,20 @@ export class CrateState extends Schema {
     const newKey = this.getPositionKey(newX, newY); 
     this.positionToCrateId.set(newKey, crate.id); // add new mapping to crate
   }
+
+  getAndClearMovedCrates(): Crate[] {
+    const movedCrates: Crate[] = [];
+    
+    this.movedCrateIds.forEach(crateId => {
+      const crate = this.crates.get(crateId);
+      if (crate) {
+        movedCrates.push(crate);
+      }
+    });
+
+    this.movedCrateIds.clear();
+
+    return movedCrates;
+}
 
 }
