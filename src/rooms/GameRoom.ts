@@ -7,11 +7,10 @@ export class GameRoom extends Room<RoomState> {
 
   onCreate(options: any) {
     this.onMessage("move", (client, message) => {
-      if (this.state.movePlayer(client.sessionId, message.x, message.y)) {
+      if (this.state.movePlayer(client.sessionId, message.direction)) {
         this.broadcast("positionUpdate", {
-          playerName: this.state.playerState.getPlayerName(client.sessionId),
-          position: this.state.playerState.players.get(client.sessionId)
-            .position,
+          sessionId: client.sessionId,
+          direction: message.direction,
         });
       }
     });
@@ -26,10 +25,10 @@ export class GameRoom extends Room<RoomState> {
     const player = this.state.playerState.players.get(client.sessionId);
 
     this.broadcast("onAddPlayer", {
+      sessionId: client.sessionId,
       playerName: player.name,
       position: player.position,
       index: player.index,
-      sessionId: client.sessionId,
     });
     console.log(client.sessionId, "joined!");
   }
@@ -45,7 +44,7 @@ export class GameRoom extends Room<RoomState> {
 
     } catch (e) {
       this.broadcast("onRemovePlayer", {
-        playerName: this.state.playerState.getPlayerName(client.sessionId),
+        sessionId: client.sessionId,
       });
       this.state.despawnPlayer(client.sessionId);
     }
