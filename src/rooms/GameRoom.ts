@@ -1,5 +1,6 @@
 import { Room, Client } from "@colyseus/core";
 import { RoomState } from "./schema/RoomState";
+import { getMoveVectorFromDirection } from "../shared/utils/vectorUtils";
 
 export class GameRoom extends Room<RoomState> {
   maxClients = 4;
@@ -11,50 +12,53 @@ export class GameRoom extends Room<RoomState> {
     this.onMessage("move", (client, message) => {
       const player = this.state.playerState.players.get(client.sessionId);
       if (!player) return;
-      
+
       const oldX = player.position.x;
       const oldY = player.position.y;
 
-      if (this.state.movePlayer(client.sessionId, message.x, message.y)) {
+      const { dx: deltaX, dy: deltaY } = getMoveVectorFromDirection(
+        message.direction
+      );
+
+      if (this.state.movePlayer(client.sessionId, deltaX, deltaY)) {
         const newX = player.position.x;
         const newY = player.position.y;
 
         this.broadcast("positionUpdate", {
-          playerName: this.state.playerState.getPlayerName(client.sessionId),
-          position: player.position,
+          sessionId: client.sessionId,
+          direction: message.direction,
         });
 
         const movedCrates = this.state.crateState.getAndClearMovedCrates();
-        
+
         const positionsToCheck = new Set<string>();
-        positionsToCheck.add(`${oldX}_${oldY}`); 
+        positionsToCheck.add(`${oldX}_${oldY}`);
         positionsToCheck.add(`${newX}_${newY}`);
 
-        movedCrates.forEach(crate => {
-          this.broadcast("crateUpdate", {
-            crateId: crate.id,
-            position: crate.position
-          });
-          positionsToCheck.add(`${crate.position.x}_${crate.position.y}`);
-        })
+        this.broadcast("cratesUpdate", { crates: movedCrates });
 
-        const allDoorsToUpdate = new Map<string, { doorId: string, open: boolean }>();
-        
-        positionsToCheck.forEach(key => {
-            const [x, y] = key.split('_').map(Number);
-            const updates = this.state.checkButtonPress(x, y);
-            
-            updates.forEach(update => allDoorsToUpdate.set(update.doorId, update));
-        });
+        // const allDoorsToUpdate = new Map<
+        //   string,
+        //   { doorId: string; open: boolean }
+        // >();
 
-        allDoorsToUpdate.forEach(d =>
-            this.broadcast("doorUpdate", {
-                doorId: d.doorId,
-                position: this.state.doorState.doors.get(d.doorId).position,
-                open: d.open,
-            })
-        );
-        this.broadcast("mapInfo", this.state.getMapInfo());
+        // positionsToCheck.forEach((key) => {
+        //   const [x, y] = key.split("_").map(Number);
+        //   const updates = this.state.checkButtonPress(x, y);
+
+        //   updates.forEach((update) =>
+        //     allDoorsToUpdate.set(update.doorId, update)
+        //   );
+        // });
+
+        // allDoorsToUpdate.forEach((d) =>
+        //   this.broadcast("doorUpdate", {
+        //     doorId: d.doorId,
+        //     position: this.state.doorState.doors.get(d.doorId).position,
+        //     open: d.open,
+        //   })
+        // );
+        // this.broadcast("mapInfo", this.state.getMapInfo());
       }
     });
 
@@ -68,10 +72,10 @@ export class GameRoom extends Room<RoomState> {
     const player = this.state.playerState.players.get(client.sessionId);
 
     this.broadcast("onAddPlayer", {
+      sessionId: client.sessionId,
       playerName: player.name,
       position: player.position,
       index: player.index,
-      sessionId: client.sessionId,
     });
     console.log(client.sessionId, "joined!");
   }
@@ -83,11 +87,10 @@ export class GameRoom extends Room<RoomState> {
       }
 
       // allow disconnected client to reconnect into this room until 20 seconds
-      await this.allowReconnection(client, 20);
-
+      await this.allowReconnection(client, 0);
     } catch (e) {
       this.broadcast("onRemovePlayer", {
-        playerName: this.state.playerState.getPlayerName(client.sessionId),
+        sessionId: client.sessionId,
       });
       this.state.despawnPlayer(client.sessionId);
     }
@@ -97,5 +100,4 @@ export class GameRoom extends Room<RoomState> {
     this.state.onRoomDispose();
     console.log("room", this.roomId, "disposing...");
   }
-
 }

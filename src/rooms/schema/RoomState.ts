@@ -42,9 +42,9 @@ export class RoomState extends Schema {
     0,
     1,
     1,
-    2,
-    2,
-    2,
+    0,
+    0,
+    0,
     0,
     0,
     0,
@@ -114,7 +114,9 @@ export class RoomState extends Schema {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return false;
     }
-    return this.getCellValue(x, y) === 0;
+    return (
+      this.getCellValue(x, y) === 0 && this.crateState.getCrateAt(x, y) === null
+    );
   }
 
   isWalkableForCrate(x: number, y: number): boolean {
@@ -122,12 +124,13 @@ export class RoomState extends Schema {
     const cell = this.getCellValue(x, y);
 
     // check if empty or wall occuppies
-    if (cell !== 0 && cell !== 2) return false;
+    if (cell !== 0) return false;
 
     // check if player occupies
-    const playerOccupies = [...this.playerState.players.values()]
-      .some(p => p.position.x === x && p.position.y === y);
-    
+    const playerOccupies = [...this.playerState.players.values()].some(
+      (p) => p.position.x === x && p.position.y === y
+    );
+
     if (playerOccupies) return false;
 
     return true;
@@ -202,13 +205,13 @@ export class RoomState extends Schema {
           y: crate.position.y,
         };
       }),
-      doors: Array.from(this.doorState.doors.values()).map(door => ({
+      doors: Array.from(this.doorState.doors.values()).map((door) => ({
         doorId: door,
         x: door.position.x,
         y: door.position.y,
         open: door.open,
       })),
-      buttons: Array.from(this.buttonState.buttons.values()).map(button => ({
+      buttons: Array.from(this.buttonState.buttons.values()).map((button) => ({
         buttonId: button.id,
         x: button.position.x,
         y: button.position.y,
@@ -232,7 +235,7 @@ export class RoomState extends Schema {
     return this.playerState.getPlayerName(sessionId);
   }
 
-  spawnCrate(x: number, y:number) {
+  spawnCrate(x: number, y: number) {
     this.crateState.createCrate(x, y);
   }
 
@@ -241,69 +244,63 @@ export class RoomState extends Schema {
   }
 
   moveCrate(crateId: string, dx: number, dy: number): boolean {
-  const crate = this.crateState.crates.get(crateId);
-  if (!crate) return false;
+    const crate = this.crateState.crates.get(crateId);
+    if (!crate) return false;
 
-  const targetX = crate.position.x + dx;
-  const targetY = crate.position.y + dy;
+    const targetX = crate.position.x + dx;
+    const targetY = crate.position.y + dy;
 
-  if (!this.isWalkableForCrate(targetX, targetY)) return false;
+    if (!this.isWalkableForCrate(targetX, targetY)) return false;
 
-  const nextCrate = this.crateState.getCrateAt(targetX, targetY);
-  if (nextCrate && !this.moveCrate(nextCrate.id, dx, dy)) return false;
+    const nextCrate = this.crateState.getCrateAt(targetX, targetY);
+    if (nextCrate && !this.moveCrate(nextCrate.id, dx, dy)) return false;
 
-  const oldX = crate.position.x;
-  const oldY = crate.position.y;
-  this.grid[oldY * this.width + oldX] = 0;
+    const oldX = crate.position.x;
+    const oldY = crate.position.y;
 
-  this.crateState.moveCrateIndex(crate, oldX, oldY, targetX, targetY);
+    this.crateState.moveCratesBlock(oldX, oldY, targetX, targetY, dx, dy);
 
-  crate.position.x = targetX;
-  crate.position.y = targetY;
+    crate.position.x = targetX;
+    crate.position.y = targetY;
 
-  this.checkButtonPress(oldX,oldY);
-  this.checkButtonPress(targetX, targetY);
+    this.checkButtonPress(oldX, oldY);
+    this.checkButtonPress(targetX, targetY);
 
-  this.grid[targetY * this.width + targetX] = 2; 
-  return true;
-}
+    return true;
+  }
 
   spawnInitialCrates() {
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        if (this.getCellValue(x, y) === 2) {
-          this.spawnCrate(x, y);
-        }
-      }
-    }
+    this.spawnCrate(5, 3);
+    this.spawnCrate(6, 3);
+    this.spawnCrate(7, 4);
   }
 
   spawnInitialDoorAndButtons() {
     const door = this.doorState.createDoor("red", 3, 0);
-    this.buttonState.createButton("redBtn", 4, 1, door.id); 
+    this.buttonState.createButton("redBtn", 4, 1, door.id);
   }
 
   checkButtonPress(x: number, y: number) {
-    const doorsToUpdate: {doorId: string, open: boolean}[] = [];
+    const doorsToUpdate: { doorId: string; open: boolean }[] = [];
 
     const button = this.buttonState.getButtonAt(x, y);
 
     if (button) {
-      const playerOnButton = [...this.playerState.players.values()]
-      .some(p => p.position.x === x && p.position.y === y);
+      const playerOnButton = [...this.playerState.players.values()].some(
+        (p) => p.position.x === x && p.position.y === y
+      );
 
-    const crateOnButton = !!this.crateState.getCrateAt(x, y);
+      const crateOnButton = !!this.crateState.getCrateAt(x, y);
 
-    const door = this.doorState.doors.get(button.doorId);
-    if (!door) return; 
+      const door = this.doorState.doors.get(button.doorId);
+      if (!door) return;
 
-    const shouldOpen = playerOnButton || crateOnButton;
-    if (door.open !== shouldOpen) {
-      door.open = shouldOpen;
-      doorsToUpdate.push({ doorId: door.id, open: door.open });
+      const shouldOpen = playerOnButton || crateOnButton;
+      if (door.open !== shouldOpen) {
+        door.open = shouldOpen;
+        doorsToUpdate.push({ doorId: door.id, open: door.open });
       }
     }
     return doorsToUpdate;
- }
-
+  }
 }

@@ -1,11 +1,12 @@
 import { type, Schema, MapSchema, SetSchema } from "@colyseus/schema";
 import { Position } from "./Position";
+import type { Direction } from "../../shared/utils/vectorUtils";
+import { getDirectionFromMoveVector } from "../../shared/utils/vectorUtils";
 
 export class Crate extends Schema {
   @type("string") id: string;
   @type(Position) position: Position;
 }
-
 
 export class CrateState extends Schema {
   @type({ map: Crate })
@@ -16,8 +17,9 @@ export class CrateState extends Schema {
 
   private positionToCrateId = new Map<string, string>(); // key: "x_y", value: crateId
   private movedCrateIds = new Set<string>();
+  private movedCrateDirections = new Map<string, Direction>(); // key: crateId, value: direction
 
-  private getPositionKey(x: number, y: number) : string {
+  private getPositionKey(x: number, y: number): string {
     return `${x}_${y}`;
   }
 
@@ -60,27 +62,57 @@ export class CrateState extends Schema {
     return crateId ? this.crates.get(crateId) : null;
   }
 
-  moveCrateIndex(crate: Crate, oldX: number, oldY: number, newX: number, newY: number) {
+  moveCrateIndex(
+    crate: Crate,
+    oldX: number,
+    oldY: number,
+    dx: number,
+    dy: number
+  ) {
     const oldKey = this.getPositionKey(oldX, oldY);
     this.positionToCrateId.delete(oldKey); // delete old mapping
 
-    const newKey = this.getPositionKey(newX, newY); 
+    this.movedCrateIds.add(crate.id);
+    this.movedCrateDirections.set(crate.id, getDirectionFromMoveVector(dx, dy));
+
+    const newKey = this.getPositionKey(oldX + dx, oldY + dy);
     this.positionToCrateId.set(newKey, crate.id); // add new mapping to crate
   }
 
+  moveCratesBlock(
+    oldX: number,
+    oldY: number,
+    targetX: number,
+    targetY: number,
+    dx: number,
+    dy: number
+  ): boolean {
+    while (oldX !== targetX || oldY !== targetY) {
+      targetX -= dx;
+      targetY -= dy;
+      const crate = this.getCrateAt(targetX, targetY);
+      if (!crate) return false;
+      this.moveCrateIndex(crate, targetX, targetY, dx, dy);
+    }
+    return true;
+  }
+
   getAndClearMovedCrates(): Crate[] {
-    const movedCrates: Crate[] = [];
-    
-    this.movedCrateIds.forEach(crateId => {
-      const crate = this.crates.get(crateId);
-      if (crate) {
-        movedCrates.push(crate);
+    const movedCrates: any = [];
+
+    this.movedCrateIds.forEach((crateId) => {
+      const crateDirection = this.movedCrateDirections.get(crateId);
+      if (crateDirection) {
+        movedCrates.push({
+          crateId: crateId,
+          direction: crateDirection,
+        });
       }
     });
 
     this.movedCrateIds.clear();
+    this.movedCrateDirections.clear();
 
     return movedCrates;
-}
-
+  }
 }
