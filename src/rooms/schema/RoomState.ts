@@ -1,13 +1,15 @@
 import { type, Schema, ArraySchema } from "@colyseus/schema";
 import { Position } from "./Position.js";
 import { PlayerState } from "./PlayerState";
-import { Player } from "./Player.js";
+import { CrateState } from "./CrateState.js";
+import { ButtonState } from "./ButtonState.js";
+import { DoorState } from "./DoorState.js";
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
-    0,
-    0,
-    0,
+    1,
+    1,
+    1,
     0,
     0,
     0,
@@ -40,9 +42,9 @@ export class RoomState extends Schema {
     0,
     1,
     1,
-    2,
-    2,
-    2,
+    0,
+    0,
+    0,
     0,
     0,
     0,
@@ -88,6 +90,9 @@ export class RoomState extends Schema {
   );
 
   @type(PlayerState) playerState: PlayerState = new PlayerState();
+  @type(CrateState) crateState: CrateState = new CrateState();
+  @type(DoorState) doorState: DoorState = new DoorState();
+  @type(ButtonState) buttonState: ButtonState = new ButtonState();
 
   getCellValue(x: number, y: number): number {
     return this.grid[y * this.width + x];
@@ -105,11 +110,33 @@ export class RoomState extends Schema {
     return array2D;
   }
 
-  isWalkable(x: number, y: number): boolean {
+  isWalkableForPlayer(x: number, y: number): boolean {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return false;
     }
-    return this.getCellValue(x, y) === 0;
+    return (
+      this.getCellValue(x, y) === 0 &&
+      this.crateState.getCrateAt(x, y) === null &&
+      this.doorState.isOpenOrEmptyAt(x, y)
+    );
+  }
+
+  isWalkableForCrate(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    const cell = this.getCellValue(x, y);
+
+    // check if empty or wall occuppies
+    if (cell !== 0) return false;
+
+    // check if player occupies
+    const playerOccupies = [...this.playerState.players.values()].some(
+      (p) => p.position.x === x && p.position.y === y
+    );
+
+    if (playerOccupies) return false;
+    if (!this.doorState.isOpenOrEmptyAt(x, y)) return false;
+
+    return true;
   }
 
   spawnNewPlayer(sessionId: string, name: string = null) {
@@ -127,43 +154,31 @@ export class RoomState extends Schema {
 
   onRoomDispose() {
     this.playerState.onRoomDispose();
+    this.crateState.onRoomDispose();
+    this.doorState.onRoomDispose();
+    this.buttonState.onRoomDispose();
   }
 
-  attemptMove(player: Player, newX: number, newY: number): boolean {
-    if (!this.isWalkable(newX, newY)) {
-      return false;
-    }
-    player.position.x = newX;
-    player.position.y = newY;
-    return true;
-  }
-
-  movePlayer(sessionId: string, direction: "left" | "right" | "up" | "down"): boolean {
+  movePlayer(sessionId: string, deltaX: number, deltaY: number): boolean {
     const player = this.playerState.players.get(sessionId);
-    let deltaX = 0;
-    let deltaY = 0;
-
-    switch (direction) {
-      case "up":
-        deltaY = -1;
-        break;
-      case "down":
-        deltaY = 1;
-        break;
-      case "left":
-        deltaX = -1;
-        break;
-      case "right":
-        deltaX = 1;
-        break;
-      default:
-        return false;
-    }
 
     const newX = player.position.x + deltaX;
     const newY = player.position.y + deltaY;
 
-    return this.attemptMove(player, newX, newY);
+    if (this.isWalkableForPlayer(newX, newY)) {
+      player.position.x = newX;
+      player.position.y = newY;
+      return true;
+    }
+
+    const crate = this.crateState.getCrateAt(newX, newY);
+    if (crate && this.moveCrate(crate.id, deltaX, deltaY)) {
+      player.position.x = newX;
+      player.position.y = newY;
+      return true;
+    }
+
+    return false;
   }
 
   getMapInfo() {
@@ -180,6 +195,27 @@ export class RoomState extends Schema {
           sessionId: player.sessionId,
         };
       }),
+      crates: Array.from(this.crateState.crates.values()).map((crate) => {
+        return {
+          crateId: crate.id,
+          x: crate.position.x,
+          y: crate.position.y,
+        };
+      }),
+      doors: Array.from(this.doorState.doors.values()).map((door) => ({
+        doorId: door.id,
+        color: door.color,
+        x: door.position.x,
+        y: door.position.y,
+        open: door.open,
+      })),
+      buttons: Array.from(this.buttonState.buttons.values()).map((button) => ({
+        buttonId: button.id,
+        color: button.color,
+        x: button.position.x,
+        y: button.position.y,
+        pressed: button.pressed,
+      })),
     };
   }
 
@@ -197,5 +233,83 @@ export class RoomState extends Schema {
 
   getPlayerName(sessionId: string): string {
     return this.playerState.getPlayerName(sessionId);
+  }
+
+  spawnCrate(x: number, y: number) {
+    this.crateState.createCrate(x, y);
+  }
+
+  despawnCrate(id: string) {
+    this.crateState.removeCrate(id);
+  }
+
+  moveCrate(crateId: string, dx: number, dy: number): boolean {
+    const crate = this.crateState.crates.get(crateId);
+    if (!crate) return false;
+
+    const targetX = crate.position.x + dx;
+    const targetY = crate.position.y + dy;
+
+    if (!this.isWalkableForCrate(targetX, targetY)) return false;
+
+    const nextCrate = this.crateState.getCrateAt(targetX, targetY);
+    if (nextCrate && !this.moveCrate(nextCrate.id, dx, dy)) return false;
+
+    const oldX = crate.position.x;
+    const oldY = crate.position.y;
+
+    this.crateState.moveCratesBlock(oldX, oldY, targetX, targetY, dx, dy);
+
+    crate.position.x = targetX;
+    crate.position.y = targetY;
+
+    return true;
+  }
+
+  spawnInitialCrates() {
+    this.spawnCrate(5, 3);
+    this.spawnCrate(6, 3);
+    this.spawnCrate(7, 4);
+  }
+
+  spawnInitialDoorAndButtons() {
+    const door = this.doorState.createDoor("1", "red", 3, 0);
+    this.buttonState.createButton("redBtn", "red", 4, 1, door.id);
+  }
+
+  checkButtonPressed() {
+    const doorsAndButtonsToUpdate: {
+      doorId: string;
+      buttonId: string;
+      open: boolean;
+    }[] = [];
+
+    for (const button of this.buttonState.buttons.values()) {
+      const playerOnButton = [...this.playerState.players.values()].some(
+        (p) =>
+          p.position.x === button.position.x &&
+          p.position.y === button.position.y
+      );
+
+      const crateOnButton = !!this.crateState.getCrateAt(
+        button.position.x,
+        button.position.y
+      );
+
+      const door = this.doorState.doors.get(button.doorId);
+      if (!door) return;
+
+      const shouldOpen = playerOnButton || crateOnButton;
+      if (door.open !== shouldOpen) {
+        door.open = shouldOpen;
+        button.pressed = shouldOpen;
+        doorsAndButtonsToUpdate.push({
+          doorId: door.id,
+          buttonId: button.id,
+          open: door.open,
+        });
+      }
+    }
+    return doorsAndButtonsToUpdate;
   }
 }

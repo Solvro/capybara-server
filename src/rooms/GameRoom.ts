@@ -1,16 +1,53 @@
 import { Room, Client } from "@colyseus/core";
 import { RoomState } from "./schema/RoomState";
+import { getMoveVectorFromDirection } from "../shared/utils/vectorUtils";
 
 export class GameRoom extends Room<RoomState> {
   maxClients = 4;
   state = new RoomState();
 
   onCreate(options: any) {
+    this.state.spawnInitialCrates();
+    this.state.spawnInitialDoorAndButtons();
     this.onMessage("move", (client, message) => {
+<<<<<<< HEAD
+      const player = this.state.playerState.players.get(client.sessionId);
+      if (!player) return;
+
+      const oldX = player.position.x;
+      const oldY = player.position.y;
+
+      const { dx: deltaX, dy: deltaY } = getMoveVectorFromDirection(
+        message.direction
+      );
+
+      if (this.state.movePlayer(client.sessionId, deltaX, deltaY)) {
+        const newX = player.position.x;
+        const newY = player.position.y;
+
+        this.broadcast("positionUpdate", {
+          sessionId: client.sessionId,
+          direction: message.direction,
+        });
+
+        const movedCrates = this.state.crateState.getAndClearMovedCrates();
+
+        const positionsToCheck = new Set<string>();
+        positionsToCheck.add(`${oldX}_${oldY}`);
+        positionsToCheck.add(`${newX}_${newY}`);
+
+        this.broadcast("cratesUpdate", { crates: movedCrates });
+
+        const doorsAndButtonsToUpdate = this.state.checkButtonPressed();
+
+        this.broadcast("doorsAndButtonsUpdate", {
+          doorsAndButtons: doorsAndButtonsToUpdate,
+=======
       if (this.state.movePlayer(client.sessionId, message.direction)) {
         this.broadcast("positionUpdate", {
           sessionId: client.sessionId,
           direction: message.direction,
+>>>>>>> main
         });
       }
     });
@@ -40,8 +77,7 @@ export class GameRoom extends Room<RoomState> {
       }
 
       // allow disconnected client to reconnect into this room until 20 seconds
-      await this.allowReconnection(client, 20);
-
+      await this.allowReconnection(client, 0);
     } catch (e) {
       this.broadcast("onRemovePlayer", {
         sessionId: client.sessionId,
