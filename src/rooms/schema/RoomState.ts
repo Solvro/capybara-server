@@ -39,7 +39,7 @@ export function raycastToWall(
     const val = grid[idx];
     cells.push({ x, y, value: val });
 
-    if (val === 1 || val === 2) {
+    if (val === 1 || val === 3) {
       break;
     }
 
@@ -54,76 +54,76 @@ export class RoomState extends Schema {
   @type({ map: Laser }) lasers = new MapSchema<Laser>();
 
   @type(["number"]) grid = new ArraySchema<number>(
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
-    2,
+    3,
+    3,
+    3,
+    3,
+    3,
+    2,
+    2,
+    3,
+    3,
+    3, // Row 0: (5,0) and (6,0) are laser sources
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, // Row 1: Clear path for players
+    3,
+    3,
+    3,
+    3,
+    3,
+    0,
+    0,
+    3,
+    3,
+    3, // Row 2: Path under lasers
+    3,
+    3,
+    3,
+    3,
+    3,
+    0,
+    0,
+    3,
+    3,
+    3, // Row 3: Path under lasers
+    3,
+    3,
+    3,
+    3,
+    3,
+    0,
+    0,
+    3,
+    3,
+    3, // Row 4: Path under lasers
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, // Row 5: Clear path for players
+    3,
+    3,
+    3,
+    3,
+    3,
+    0,
+    0,
+    3,
+    3,
+    3, // Row 6: Path under lasers
   );
 
   @type("number") width: number = 10;
@@ -140,6 +140,67 @@ export class RoomState extends Schema {
 
   getCellValue(x: number, y: number): number {
     return this.grid[y * this.width + x];
+  }
+
+  constructor() {
+    super();
+    // Initialize static lasers
+    this.activateStaticLasers();
+  }
+
+  activateStaticLasers() {
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        const value = this.getCellValue(x, y);
+        if (value === 2) {
+          // It's a laser source
+          const laserId = `laser_${x}`;
+          let laser = this.lasers.get(laserId);
+          if (!laser) {
+            laser = new Laser();
+            laser.ownerSessionId = "server"; // or special ID
+            this.lasers.set(laserId, laser);
+          }
+          // Defaults to OFF
+          laser.isOn = false;
+          laser.x = x;
+          laser.y = y;
+          laser.dx = 0;
+          laser.dy = 1;
+          laser.color = "yellow"; // Static laser color
+
+          // Do not update yet
+          // this.updateLaser(laserId);
+        }
+      }
+    }
+  }
+
+  toggleStaticLasers(active: boolean) {
+    const allHits: any[] = [];
+    this.lasers.forEach((laser, key) => {
+      if (key.startsWith("laser_")) {
+        const wasOn = laser.isOn;
+        laser.isOn = active;
+
+        if (active) {
+          const hits = this.updateLaser(key);
+          if (hits) {
+            allHits.push(...hits);
+          }
+        } else {
+          // Force reset endpoint to start point when turning off
+          // This ensures that even if isOn=false isn't synced perfectly,
+          // the beam has length 0.
+          laser.endX = laser.x;
+          laser.endY = laser.y;
+        }
+
+        // Force map update trigger
+        this.lasers.set(key, laser);
+      }
+    });
+    return allHits;
   }
 
   getGridAs2DArray(): number[][] {
@@ -228,7 +289,7 @@ export class RoomState extends Schema {
     const index = y * this.width + x;
     const value = this.grid[index];
 
-    if (value === 2) {
+    if (value === 3) {
       this.grid[index] = 0;
 
       return { x, y };
@@ -316,7 +377,7 @@ export class RoomState extends Schema {
       // Always add to hits for visual rendering
       let hitType = "beam";
 
-      if (c.value === 2) {
+      if (c.value === 3) {
         const res = this.applyLaserAt(c.x, c.y);
         if (res.destroyed) {
           hitType = "box";
@@ -356,7 +417,7 @@ export class RoomState extends Schema {
     const idx = y * this.width + x;
     const before = this.grid[idx];
 
-    if (before === 2) {
+    if (before === 3) {
       this.grid[idx] = 0;
       console.log(`Box destroyed at (${x},${y})`);
       result.destroyed = true;
