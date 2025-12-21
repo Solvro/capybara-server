@@ -10,6 +10,7 @@ export class GameRoom extends Room<RoomState> {
     this.state.spawnInitialCrates();
     this.state.spawnInitialDoorAndButtons();
     this.onMessage("move", (client, message) => {
+<<<<<<< HEAD
       const player = this.state.playerState.players.get(client.sessionId);
       if (!player) return;
 
@@ -41,6 +42,12 @@ export class GameRoom extends Room<RoomState> {
 
         this.broadcast("doorsAndButtonsUpdate", {
           doorsAndButtons: doorsAndButtonsToUpdate,
+=======
+      if (this.state.movePlayer(client.sessionId, message.direction)) {
+        this.broadcast("positionUpdate", {
+          sessionId: client.sessionId,
+          direction: message.direction,
+>>>>>>> main
         });
       }
     });
