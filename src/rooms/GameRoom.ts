@@ -37,28 +37,11 @@ export class GameRoom extends Room<RoomState> {
 
         this.broadcast("cratesUpdate", { crates: movedCrates });
 
-        // const allDoorsToUpdate = new Map<
-        //   string,
-        //   { doorId: string; open: boolean }
-        // >();
+        const doorsAndButtonsToUpdate = this.state.checkButtonPressed();
 
-        // positionsToCheck.forEach((key) => {
-        //   const [x, y] = key.split("_").map(Number);
-        //   const updates = this.state.checkButtonPress(x, y);
-
-        //   updates.forEach((update) =>
-        //     allDoorsToUpdate.set(update.doorId, update)
-        //   );
-        // });
-
-        // allDoorsToUpdate.forEach((d) =>
-        //   this.broadcast("doorUpdate", {
-        //     doorId: d.doorId,
-        //     position: this.state.doorState.doors.get(d.doorId).position,
-        //     open: d.open,
-        //   })
-        // );
-        // this.broadcast("mapInfo", this.state.getMapInfo());
+        this.broadcast("doorsAndButtonsUpdate", {
+          doorsAndButtons: doorsAndButtonsToUpdate,
+        });
       }
     });
 

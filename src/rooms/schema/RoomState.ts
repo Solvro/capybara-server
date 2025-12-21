@@ -115,7 +115,9 @@ export class RoomState extends Schema {
       return false;
     }
     return (
-      this.getCellValue(x, y) === 0 && this.crateState.getCrateAt(x, y) === null
+      this.getCellValue(x, y) === 0 &&
+      this.crateState.getCrateAt(x, y) === null &&
+      this.doorState.isOpenOrEmptyAt(x, y)
     );
   }
 
@@ -132,6 +134,7 @@ export class RoomState extends Schema {
     );
 
     if (playerOccupies) return false;
+    if (!this.doorState.isOpenOrEmptyAt(x, y)) return false;
 
     return true;
   }
@@ -159,16 +162,12 @@ export class RoomState extends Schema {
   movePlayer(sessionId: string, deltaX: number, deltaY: number): boolean {
     const player = this.playerState.players.get(sessionId);
 
-    const oldX = player.position.x;
-    const oldY = player.position.y;
     const newX = player.position.x + deltaX;
     const newY = player.position.y + deltaY;
 
     if (this.isWalkableForPlayer(newX, newY)) {
       player.position.x = newX;
       player.position.y = newY;
-      this.checkButtonPress(oldX, oldY);
-      this.checkButtonPress(newX, newY);
       return true;
     }
 
@@ -176,8 +175,6 @@ export class RoomState extends Schema {
     if (crate && this.moveCrate(crate.id, deltaX, deltaY)) {
       player.position.x = newX;
       player.position.y = newY;
-      this.checkButtonPress(oldX, oldY);
-      this.checkButtonPress(newX, newY);
       return true;
     }
 
@@ -206,15 +203,18 @@ export class RoomState extends Schema {
         };
       }),
       doors: Array.from(this.doorState.doors.values()).map((door) => ({
-        doorId: door,
+        doorId: door.id,
+        color: door.color,
         x: door.position.x,
         y: door.position.y,
         open: door.open,
       })),
       buttons: Array.from(this.buttonState.buttons.values()).map((button) => ({
         buttonId: button.id,
+        color: button.color,
         x: button.position.x,
         y: button.position.y,
+        pressed: button.pressed,
       })),
     };
   }
@@ -263,9 +263,6 @@ export class RoomState extends Schema {
     crate.position.x = targetX;
     crate.position.y = targetY;
 
-    this.checkButtonPress(oldX, oldY);
-    this.checkButtonPress(targetX, targetY);
-
     return true;
   }
 
@@ -276,21 +273,28 @@ export class RoomState extends Schema {
   }
 
   spawnInitialDoorAndButtons() {
-    const door = this.doorState.createDoor("red", 3, 0);
-    this.buttonState.createButton("redBtn", 4, 1, door.id);
+    const door = this.doorState.createDoor("1", "red", 3, 0);
+    this.buttonState.createButton("redBtn", "red", 4, 1, door.id);
   }
 
-  checkButtonPress(x: number, y: number) {
-    const doorsToUpdate: { doorId: string; open: boolean }[] = [];
+  checkButtonPressed() {
+    const doorsAndButtonsToUpdate: {
+      doorId: string;
+      buttonId: string;
+      open: boolean;
+    }[] = [];
 
-    const button = this.buttonState.getButtonAt(x, y);
-
-    if (button) {
+    for (const button of this.buttonState.buttons.values()) {
       const playerOnButton = [...this.playerState.players.values()].some(
-        (p) => p.position.x === x && p.position.y === y
+        (p) =>
+          p.position.x === button.position.x &&
+          p.position.y === button.position.y
       );
 
-      const crateOnButton = !!this.crateState.getCrateAt(x, y);
+      const crateOnButton = !!this.crateState.getCrateAt(
+        button.position.x,
+        button.position.y
+      );
 
       const door = this.doorState.doors.get(button.doorId);
       if (!door) return;
@@ -298,9 +302,14 @@ export class RoomState extends Schema {
       const shouldOpen = playerOnButton || crateOnButton;
       if (door.open !== shouldOpen) {
         door.open = shouldOpen;
-        doorsToUpdate.push({ doorId: door.id, open: door.open });
+        button.pressed = shouldOpen;
+        doorsAndButtonsToUpdate.push({
+          doorId: door.id,
+          buttonId: button.id,
+          open: door.open,
+        });
       }
     }
-    return doorsToUpdate;
+    return doorsAndButtonsToUpdate;
   }
 }

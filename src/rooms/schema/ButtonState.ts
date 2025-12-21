@@ -4,6 +4,8 @@ import { Position } from "./Position";
 export class Button extends Schema {
   @type("string") id: string;
   @type(Position) position: Position = new Position();
+  @type("boolean") pressed: boolean = false;
+  @type("string") color: string;
   @type("string") doorId: string;
 }
 
@@ -11,12 +13,20 @@ export class ButtonState extends Schema {
   @type({ map: Button }) buttons = new MapSchema<Button>();
   @type({ map: "string" }) positionMap = new MapSchema<string>(); // key: "x_y", value: buttonId
 
-  createButton(id: string, x: number, y: number, doorId: string): Button {
+  createButton(
+    id: string,
+    color: string,
+    x: number,
+    y: number,
+    doorId: string
+  ): Button {
     const button = new Button();
     button.id = id;
+    button.color = color;
     button.position.x = x;
     button.position.y = y;
     button.doorId = doorId;
+    button.pressed = false;
     this.buttons.set(id, button);
     this.positionMap.set(`${x}_${y}`, id);
     return button;
@@ -30,13 +40,13 @@ export class ButtonState extends Schema {
   removeButton(id: string) {
     const button = this.buttons.get(id);
     if (button) {
-    this.positionMap.delete(`${button.position.x}_${button.position.y}`);
-    this.buttons.delete(id);
+      this.positionMap.delete(`${button.position.x}_${button.position.y}`);
+      this.buttons.delete(id);
     }
   }
 
   onRoomDispose() {
-   this.buttons.clear();
-   this.positionMap.clear();
+    this.buttons.clear();
+    this.positionMap.clear();
   }
 }
