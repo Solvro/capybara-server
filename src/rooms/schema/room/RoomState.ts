@@ -1,9 +1,9 @@
 import { type, Schema, ArraySchema } from "@colyseus/schema";
-import { Position } from "./Position.js";
-import { PlayerState } from "./PlayerState";
-import { CrateState } from "./CrateState.js";
-import { ButtonState } from "./ButtonState.js";
-import { DoorState } from "./DoorState.js";
+import { Position } from "../Position.js";
+import { PlayerState } from "../PlayerState";
+import { CrateState } from "../CrateState.js";
+import { ButtonState } from "../ButtonState.js";
+import { DoorState } from "../DoorState.js";
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
