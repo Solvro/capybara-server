@@ -11,7 +11,20 @@
 
     "layout": {
       "type": "array",
-      "items": { "type": "integer" }
+      "items": {
+        "type": "object",
+        "required": ["type", "variant"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["wall"]
+          },
+          "variant": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
     },
 
     "mechanics": {
