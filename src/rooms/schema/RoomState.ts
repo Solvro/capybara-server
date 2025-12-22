@@ -1,98 +1,63 @@
 import { type, Schema, ArraySchema } from "@colyseus/schema";
-import { Position } from "../Position.js";
-import { PlayerState } from "../PlayerState";
-import { CrateState } from "../CrateState.js";
-import { ButtonState } from "../ButtonState.js";
-import { DoorState } from "../DoorState.js";
+import { Position } from "./Position.js";
+import { PlayerState } from "./PlayerState.js";
+import { CrateState } from "./CrateState.js";
+import { ButtonState } from "./ButtonState.js";
+import { DoorState } from "./DoorState.js";
 
 export class RoomState extends Schema {
-  @type(["number"]) grid = new ArraySchema<number>(
-    1,
-    1,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-  );
-
+  @type(["number"]) grid = new ArraySchema<number>();
   @type("number") width: number = 10;
   @type("number") height: number = 7;
 
-  @type([Position]) startingPositions = new ArraySchema<Position>(
-    new Position().assign({ x: 1, y: 1 }),
-    new Position().assign({ x: 8, y: 1 }),
-    new Position().assign({ x: 1, y: 5 }),
-    new Position().assign({ x: 8, y: 5 })
-  );
+  @type([Position]) startingPositions = new ArraySchema<Position>();
 
   @type(PlayerState) playerState: PlayerState = new PlayerState();
   @type(CrateState) crateState: CrateState = new CrateState();
   @type(DoorState) doorState: DoorState = new DoorState();
   @type(ButtonState) buttonState: ButtonState = new ButtonState();
+
+  loadRoomFromJson(jsonData: any) {
+    try {
+      this.width = jsonData.width;
+      this.height = jsonData.height;
+
+      this.grid = new ArraySchema<number>(...jsonData.layout);
+
+      for (const mechanicData of jsonData.mechanics) {
+        const mechanicType = mechanicData.type;
+
+        if (mechanicType === "door") {
+          this.doorState.createDoor(
+            mechanicData.id,
+            mechanicData.color,
+            mechanicData.x,
+            mechanicData.y
+          );
+        } else if (mechanicType === "button") {
+          this.buttonState.createButton(
+            mechanicData.id,
+            mechanicData.color,
+            mechanicData.x,
+            mechanicData.y,
+            mechanicData.doorId
+          );
+        }
+      }
+
+      for (const crateData of jsonData.entities.crates) {
+        this.crateState.createCrate(crateData.x, crateData.y);
+      }
+
+      for (const playerData of jsonData.entities.players) {
+        this.startingPositions.push(
+          new Position().assign({ x: playerData.x, y: playerData.y })
+        );
+      }
+    } catch (error) {
+      throw `Error loading room data: ${error}`;
+    }
+  }
 
   getCellValue(x: number, y: number): number {
     return this.grid[y * this.width + x];
@@ -235,10 +200,6 @@ export class RoomState extends Schema {
     return this.playerState.getPlayerName(sessionId);
   }
 
-  spawnCrate(x: number, y: number) {
-    this.crateState.createCrate(x, y);
-  }
-
   despawnCrate(id: string) {
     this.crateState.removeCrate(id);
   }
@@ -264,17 +225,6 @@ export class RoomState extends Schema {
     crate.position.y = targetY;
 
     return true;
-  }
-
-  spawnInitialCrates() {
-    this.spawnCrate(5, 3);
-    this.spawnCrate(6, 3);
-    this.spawnCrate(7, 4);
-  }
-
-  spawnInitialDoorAndButtons() {
-    const door = this.doorState.createDoor("1", "red", 3, 0);
-    this.buttonState.createButton("redBtn", "red", 4, 1, door.id);
   }
 
   checkButtonPressed() {

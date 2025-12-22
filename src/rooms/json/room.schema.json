@@ -5,6 +5,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "maxClients": { "type": "integer", "minimum": 1 },
     "width": { "type": "integer", "minimum": 1 },
     "height": { "type": "integer", "minimum": 1 },
 
@@ -72,10 +73,11 @@
           "additionalProperties": false,
           "properties": {
             "type": { "const": "button" },
+            "id": { "type": "string", "minLength": 1 },
             "color": { "$ref": "#/$defs/hexColor" },
-            "linkedId": { "type": "string", "minLength": 1 }
+            "doorId": { "type": "string", "minLength": 1 }
           },
-          "required": ["type", "x", "y", "color", "linkedId"]
+          "required": ["type", "x", "y", "id", "color", "doorId"]
         }
       ]
     },
