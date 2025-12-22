@@ -1,16 +1,18 @@
 import { Room, Client } from "@colyseus/core";
 import { getMoveVectorFromDirection } from "../shared/utils/vectorUtils";
 import { RoomState } from "./schema/RoomState";
-import room1 from "./json/examples/room1.json";
+// import room from "./json/examples/room1.json";
+// import room from "./json/examples/room2.json";
+import room from "./json/examples/room3.json";
 
 export class GameRoom extends Room<RoomState> {
   maxClients = 4;
   state = new RoomState();
 
   onCreate(options: any) {
-    console.log(room1.maxClients);
-    this.maxClients = room1.maxClients ?? this.maxClients;
-    this.state.loadRoomFromJson(room1);
+    console.log(room.maxClients);
+    this.maxClients = room.maxClients ?? this.maxClients;
+    this.state.loadRoomFromJson(room);
     this.onMessage("move", (client, message) => {
       const player = this.state.playerState.players.get(client.sessionId);
       if (!player) return;
