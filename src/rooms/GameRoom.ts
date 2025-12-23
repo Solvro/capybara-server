@@ -1,16 +1,18 @@
 import { Room, Client } from "@colyseus/core";
-import { RoomState } from "./schema/RoomState";
 import { getMoveVectorFromDirection } from "../shared/utils/vectorUtils";
+import { RoomState } from "./schema/RoomState";
+import room from "./json/examples/room1.json";
+// import room from "./json/examples/room2.json";
+// import room from "./json/examples/room3.json";
 
 export class GameRoom extends Room<RoomState> {
   maxClients = 4;
   state = new RoomState();
 
   onCreate(options: any) {
-    this.state.spawnInitialCrates();
-    this.state.spawnInitialDoorAndButtons();
+    this.maxClients = room.maxClients ?? this.maxClients;
+    this.state.loadRoomFromJson(room);
     this.onMessage("move", (client, message) => {
-<<<<<<< HEAD
       const player = this.state.playerState.players.get(client.sessionId);
       if (!player) return;
 
@@ -42,17 +44,12 @@ export class GameRoom extends Room<RoomState> {
 
         this.broadcast("doorsAndButtonsUpdate", {
           doorsAndButtons: doorsAndButtonsToUpdate,
-=======
-      if (this.state.movePlayer(client.sessionId, message.direction)) {
-        this.broadcast("positionUpdate", {
-          sessionId: client.sessionId,
-          direction: message.direction,
->>>>>>> main
         });
       }
     });
 
     this.onMessage("getMapInfo", (client) => {
+      console.log(this.state.getMapInfo());
       client.send("mapInfo", this.state.getMapInfo());
     });
   }

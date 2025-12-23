@@ -1,109 +1,80 @@
 import { type, Schema, ArraySchema } from "@colyseus/schema";
 import { Position } from "./Position.js";
-import { PlayerState } from "./PlayerState";
+import { PlayerState } from "./PlayerState.js";
 import { CrateState } from "./CrateState.js";
 import { ButtonState } from "./ButtonState.js";
 import { DoorState } from "./DoorState.js";
 
 export class RoomState extends Schema {
-  @type(["number"]) grid = new ArraySchema<number>(
-    1,
-    1,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-  );
-
+  @type(["string"]) grid = new ArraySchema<string>();
   @type("number") width: number = 10;
   @type("number") height: number = 7;
 
-  @type([Position]) startingPositions = new ArraySchema<Position>(
-    new Position().assign({ x: 1, y: 1 }),
-    new Position().assign({ x: 8, y: 1 }),
-    new Position().assign({ x: 1, y: 5 }),
-    new Position().assign({ x: 8, y: 5 })
-  );
+  @type([Position]) startingPositions = new ArraySchema<Position>();
 
   @type(PlayerState) playerState: PlayerState = new PlayerState();
   @type(CrateState) crateState: CrateState = new CrateState();
   @type(DoorState) doorState: DoorState = new DoorState();
   @type(ButtonState) buttonState: ButtonState = new ButtonState();
 
-  getCellValue(x: number, y: number): number {
+  loadRoomFromJson(jsonData: any) {
+    try {
+      this.width = jsonData.width;
+      this.height = jsonData.height;
+
+      this.grid = new ArraySchema<string>(...jsonData.layout);
+
+      this._loadMechanics(jsonData.mechanics);
+
+      for (const crateData of jsonData.entities.crates) {
+        this.crateState.createCrate(crateData.x, crateData.y);
+      }
+
+      for (const playerData of jsonData.entities.players) {
+        this.startingPositions.push(
+          new Position().assign({ x: playerData.x, y: playerData.y })
+        );
+      }
+    } catch (error) {
+      throw `Error loading room data: ${error}`;
+    }
+  }
+
+  _loadMechanics(mechanicsData: any) {
+    for (const mechanicData of mechanicsData) {
+      const mechanicType = mechanicData.type;
+
+      if (mechanicType === "door") {
+        this.doorState.createDoor(
+          mechanicData.id,
+          mechanicData.color,
+          mechanicData.x,
+          mechanicData.y
+        );
+      } else if (mechanicType === "button") {
+        this.buttonState.createButton(
+          mechanicData.id,
+          mechanicData.color,
+          mechanicData.x,
+          mechanicData.y,
+          mechanicData.doorId
+        );
+      }
+    }
+  }
+
+  getCellValue(x: number, y: number): string {
     return this.grid[y * this.width + x];
   }
 
-  getGridAs2DArray(): number[][] {
-    const array2D: number[][] = [];
+  getGridAs2DArray(): string[][] {
+    const array2D: string[][] = [];
+
     for (let y = 0; y < this.height; y++) {
-      const row: number[] = [];
+      const row: string[] = [];
       for (let x = 0; x < this.width; x++) {
-        row.push(this.getCellValue(x, y));
+        const cell = this.getCellValue(x, y);
+        row.push(cell);
       }
       array2D.push(row);
     }
@@ -115,7 +86,7 @@ export class RoomState extends Schema {
       return false;
     }
     return (
-      this.getCellValue(x, y) === 0 &&
+      this.getCellValue(x, y).startsWith("f") &&
       this.crateState.getCrateAt(x, y) === null &&
       this.doorState.isOpenOrEmptyAt(x, y)
     );
@@ -123,17 +94,15 @@ export class RoomState extends Schema {
 
   isWalkableForCrate(x: number, y: number): boolean {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+
     const cell = this.getCellValue(x, y);
+    if (!cell.startsWith("f")) return false;
 
-    // check if empty or wall occuppies
-    if (cell !== 0) return false;
-
-    // check if player occupies
     const playerOccupies = [...this.playerState.players.values()].some(
       (p) => p.position.x === x && p.position.y === y
     );
-
     if (playerOccupies) return false;
+
     if (!this.doorState.isOpenOrEmptyAt(x, y)) return false;
 
     return true;
@@ -235,10 +204,6 @@ export class RoomState extends Schema {
     return this.playerState.getPlayerName(sessionId);
   }
 
-  spawnCrate(x: number, y: number) {
-    this.crateState.createCrate(x, y);
-  }
-
   despawnCrate(id: string) {
     this.crateState.removeCrate(id);
   }
@@ -264,17 +229,6 @@ export class RoomState extends Schema {
     crate.position.y = targetY;
 
     return true;
-  }
-
-  spawnInitialCrates() {
-    this.spawnCrate(5, 3);
-    this.spawnCrate(6, 3);
-    this.spawnCrate(7, 4);
-  }
-
-  spawnInitialDoorAndButtons() {
-    const door = this.doorState.createDoor("1", "red", 3, 0);
-    this.buttonState.createButton("redBtn", "red", 4, 1, door.id);
   }
 
   checkButtonPressed() {
