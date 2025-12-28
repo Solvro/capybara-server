@@ -36,8 +36,10 @@ export class CableState extends Schema{
 
         const key = this.getPositionKey(x, y);
         this.positionToCableId.set(key, cable.id);
+
         return cable;
     }
+    
     removeCable(id: string) {
         const cable = this.cables.get(id);
         if (!cable) return;
@@ -51,3 +53,59 @@ export class CableState extends Schema{
         this.cables.clear();
         this.usedIds.clear();
     }
+    
+    getCableAt(x: number, y: number){
+        const key = this.getPositionKey(x, y);
+        const cableId = this.positionToCableId.get(key);
+        return cableId ? this.cables.get(cableId) : null;
+    }
+    moveCableIndex(
+        cable: Cable,
+        oldX: number,
+        oldY: number,
+        dx: number,
+        dy: number
+    ){
+        const oldKey = this.getPositionKey(oldX, oldY);
+        this.positionToCableId.delete(oldKey);
+
+        this.movedCableIds.add(cable.id);
+        this.movedCableDirections.set(cable.id, getDirectionFromMoveVector(dx, dy));
+
+        const newKey = this.getPositionKey(oldX + dx, oldY + dy);
+        this.positionToCableId.set(newKey, cable.id);
+    }
+
+    moveCablesBlock(
+        oldX: number,
+        oldY: number,
+        targetX: number,
+        targetY: number,
+        dx: number,
+        dy: number
+    ): boolean {
+        while (oldX !== targetX || oldY !== targetY) {
+            targetX -= dx;
+            targetY -= dy;
+            const cable = this.getCableAt(targetX, targetY);
+            if (!cable) return false;
+            this.moveCableIndex(cable, targetX, targetY, dx, dy);
+        }
+        return true;
+    }
+    getAndClearMovedCables(): Cable[]{
+        const movedCables: any = [];
+        this.movedCableIds.forEach((cableId) => {
+            const cableDirection = this.movedCableDirections.get(cableId);
+            if (cableDirection){
+                movedCables.push({
+                    cableId: cableId,
+                    direction: cableDirection,
+                });
+            }
+        });
+        this.movedCableIds.clear();
+        this.movedCableDirections.clear();
+        return movedCables;
+    }
+}
