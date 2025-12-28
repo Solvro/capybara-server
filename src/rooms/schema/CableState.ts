@@ -38,3 +38,16 @@ export class CableState extends Schema{
         this.positionToCableId.set(key, cable.id);
         return cable;
     }
+    removeCable(id: string) {
+        const cable = this.cables.get(id);
+        if (!cable) return;
+
+        const cable = this.getPositionKey(cable.position.x, cable.position.y);
+        this.positionToCableId.delete(key);
+
+        this.cables.delete(id);
+    }
+    onRoomDispose() {
+        this.cables.clear();
+        this.usedIds.clear();
+    }
