@@ -6,6 +6,7 @@ import { getDirectionFromMoveVector } from "../../shared/utils/vectorUtils";
 export class Cable extends Schema{
     @type("string") id: string;
     @type(Position) position: Position;
+    @type("boolean") damage: boolean = false
 }
 
 export class CableState extends Schema{
@@ -38,6 +39,21 @@ export class CableState extends Schema{
         this.positionToCableId.set(key, cable.id);
 
         return cable;
+    }
+    setCableState(id: string, damage: boolean){
+        const cable = this.cables.get(id);
+        if (!cable) return;
+        cable.damage = damage;
+
+    }
+
+    doesDamageOrNotAt(x: number, y: number): boolean{
+        for (const [, cable] of this.cables){
+            if (cable.position.x === x && cable.position.y === y) {
+                return cable.damage;
+            }
+        }
+        return true;
     }
 
     removeCable(id: string) {

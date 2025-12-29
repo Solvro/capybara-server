@@ -4,6 +4,7 @@ import { PlayerState } from "./PlayerState";
 import { CrateState } from "./CrateState.js";
 import { ButtonState } from "./ButtonState.js";
 import { DoorState } from "./DoorState.js";
+import { CableState } from "./CableState.js";
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
@@ -93,6 +94,7 @@ export class RoomState extends Schema {
   @type(CrateState) crateState: CrateState = new CrateState();
   @type(DoorState) doorState: DoorState = new DoorState();
   @type(ButtonState) buttonState: ButtonState = new ButtonState();
+  @type(CableState) cableState: CableState = new CableState();
 
   getCellValue(x: number, y: number): number {
     return this.grid[y * this.width + x];
@@ -264,6 +266,12 @@ export class RoomState extends Schema {
     crate.position.y = targetY;
 
     return true;
+  }
+  spawnCable(x: number, y: number){
+    this.cableState.createCable(x, y);
+  }
+  despawnCable(id: string){
+    this.cableState.removeCable(id);
   }
 
   spawnInitialCrates() {
