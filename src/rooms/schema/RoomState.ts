@@ -4,6 +4,8 @@ import { PlayerState } from "./PlayerState.js";
 import { CrateState } from "./CrateState.js";
 import { ButtonState } from "./ButtonState.js";
 import { DoorState } from "./DoorState.js";
+import { VentState } from "./VentState.js";
+import { Capybara } from "./Capybara.js";
 
 export class RoomState extends Schema {
   @type(["string"]) grid = new ArraySchema<string>();
@@ -16,6 +18,8 @@ export class RoomState extends Schema {
   @type(CrateState) crateState: CrateState = new CrateState();
   @type(DoorState) doorState: DoorState = new DoorState();
   @type(ButtonState) buttonState: ButtonState = new ButtonState();
+  @type(VentState) ventState: VentState = new VentState();
+  @type(Capybara) capybara: Capybara;
 
   loadRoomFromJson(jsonData: any) {
     try {
@@ -35,6 +39,9 @@ export class RoomState extends Schema {
           new Position().assign({ x: playerData.x, y: playerData.y })
         );
       }
+      this.ventState.spawnInitialVents();
+      this.spawnCapybara();
+
     } catch (error) {
       throw `Error loading room data: ${error}`;
     }
@@ -106,6 +113,73 @@ export class RoomState extends Schema {
     if (!this.doorState.isOpenOrEmptyAt(x, y)) return false;
 
     return true;
+  }
+
+  isWalkableForCapybara(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+
+    const cell = this.getCellValue(x, y);
+
+    if (cell.startsWith("w")) return false;
+
+    if (this.crateState.getCrateAt(x, y)) return false;
+
+    if (!this.doorState.isOpenOrEmptyAt(x, y)) return false;
+
+    return true;
+  }
+
+  reconstructPath(parents: Map<string, {x: number; y: number}>, endNode: {x: number; y: number}): { x: number; y: number}[] {
+    const path = [endNode];
+    let current = endNode;
+    let parent = parents.get(`${current.x}_${current.y}`)
+    
+    while (parent) {
+      current = parent;
+      const key = `${current.x}_${current.y}`
+      parent = parents.get(key)
+      path.push(current)
+    }
+
+    return path.reverse();
+  }
+
+  findPathToVent(): {x: number; y: number}[] | null {
+    const startNode = { 
+      x: this.capybara.position.x,
+      y: this.capybara.position.y,
+     }
+
+     const  queue: {x: number, y: number}[] = [];
+     queue.push(startNode);
+
+     const visited = new Set<string>();
+     visited.add(`${startNode.x}_${startNode.y}`);
+
+     const parents = new Map<string, { x: number, y: number }>();
+     const delta = [{x:0, y:1}, {x:0, y:-1}, {x:1, y:0}, {x:-1, y:0}];
+
+     while (!(queue.length === 0)) {
+        let current = queue.shift()!;
+        if (this.ventState.getVentAt(current.x, current.y) && this.ventState.isOpenOrEmptyAt(current.x, current.y)) {
+          return this.reconstructPath(parents, current);
+        }
+
+
+        for (const nextMove of delta) {
+          let [nextX, nextY] = [current.x + nextMove.x, current.y + nextMove.y];
+          let nextKey: string = `${nextX}_${nextY}`
+          if (visited.has(nextKey)) continue;
+          if (!this.isWalkableForCapybara(nextX, nextY)) continue;
+          if (!this.ventState.isOpenOrEmptyAt(nextX, nextY)) continue;
+
+          visited.add(nextKey);
+          parents.set(nextKey, current);
+          queue.push({x: nextX,  y: nextY});
+        }
+     }
+     // console.log("no possible way :(")
+     return null
   }
 
   spawnNewPlayer(sessionId: string, name: string = null) {
@@ -265,5 +339,12 @@ export class RoomState extends Schema {
       }
     }
     return doorsAndButtonsToUpdate;
+  }
+
+  spawnCapybara() {
+    const startingPos = new Position();
+    startingPos.x = 3;
+    startingPos.y = 4;
+    this.capybara = new Capybara(startingPos.x, startingPos.y)
   }
 }
