@@ -6,7 +6,12 @@ import { getDirectionFromMoveVector } from "../../shared/utils/vectorUtils";
 export class Cable extends Schema{
     @type("string") id: string;
     @type(Position) position: Position;
-    @type("boolean") damage: boolean = false
+    
+    @type("boolean") damage: boolean = false;
+    @type("number") damageDuration: number;
+    @type("number") safeDuration: number;
+    @type("number") timer: number;
+    
 }
 
 export class CableState extends Schema{
@@ -19,11 +24,12 @@ export class CableState extends Schema{
     private positionToCableId = new Map<string, string>()
     private movedCableIds = new Set<string>();
     private movedCableDirections = new Map<string, Direction>();
+     
     
     private getPositionKey(x: number, y: number): string {
         return `${x}_${y}`;
     }
-    createCable(x: number, y: number): Cable {
+    createCable(x: number, y: number, damageMs: number = 3000, safeMs: number = 2000, startDamaging: boolean = true): Cable {
         const id = this.nextAvailableId++;
         this.usedIds.add(id);
 
@@ -32,6 +38,11 @@ export class CableState extends Schema{
         cable.position = new Position();
         cable.position.x = x;
         cable.position.y = y;
+
+        cable.damageDuration = damageMs;
+        cable.safeDuration = safeMs;
+        cable.damage = startDamaging;
+        cable.timer = startDamaging ? damageMs : safeMs;
 
         this.cables.set(cable.id, cable);
 
@@ -45,6 +56,8 @@ export class CableState extends Schema{
         if (!cable) return;
         cable.damage = damage;
 
+        cable.timer = damage ? cable.damageDuration : cable.safeDuration;
+
     }
 
     doesDamageOrNotAt(x: number, y: number): boolean{
@@ -53,7 +66,7 @@ export class CableState extends Schema{
                 return cable.damage;
             }
         }
-        return true;
+        return false;
     }
 
     removeCable(id: string) {
@@ -123,5 +136,19 @@ export class CableState extends Schema{
         this.movedCableIds.clear();
         this.movedCableDirections.clear();
         return movedCables;
+    }
+
+    timerMethod(deltaMs: number){
+        if(deltaMs <= 0) return;
+        for (const [, cable] of this.cables){
+            if(!Number.isFinite(cable.timer) || cable.timer <= 0){
+                cable.timer = cable.damage ? cable.damageDuration : cable.safeDuration;
+            }
+            cable.timer -= deltaMs;
+        while (cable.timer <= 0){
+            cable.damage = !cable.damage;
+            cable.timer += cable.damage ?  cable.damageDuration : cable.safeDuration;
+        }
+    }
     }
 }
