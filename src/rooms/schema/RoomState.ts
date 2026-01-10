@@ -5,6 +5,7 @@ import { CrateState } from "./CrateState.js";
 import { ButtonState } from "./ButtonState.js";
 import { DoorState } from "./DoorState.js";
 import { CableState } from "./CableState.js";
+import { debugMatchMaking } from "colyseus";
 
 export class RoomState extends Schema {
   @type(["number"]) grid = new ArraySchema<number>(
@@ -159,6 +160,7 @@ export class RoomState extends Schema {
     this.crateState.onRoomDispose();
     this.doorState.onRoomDispose();
     this.buttonState.onRoomDispose();
+    this.cableState.onRoomDispose();
   }
 
   movePlayer(sessionId: string, deltaX: number, deltaY: number): boolean {
@@ -203,6 +205,14 @@ export class RoomState extends Schema {
           x: crate.position.x,
           y: crate.position.y,
         };
+      }),
+      cables: Array.from(this.cableState.cables.values()).map((cable) => {
+        return {
+          cableId: cable.id,
+          x: cable.position.x,
+          y: cable.position.y,
+          damage: cable.damage,
+        }
       }),
       doors: Array.from(this.doorState.doors.values()).map((door) => ({
         doorId: door.id,

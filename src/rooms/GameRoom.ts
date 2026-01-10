@@ -41,17 +41,33 @@ export class GameRoom extends Room<RoomState> {
 
         this.broadcast("doorsAndButtonsUpdate", {
           doorsAndButtons: doorsAndButtonsToUpdate,
-      if (this.state.movePlayer(client.sessionId, message.direction)) {
-        this.broadcast("positionUpdate", {
-          sessionId: client.sessionId,
-          direction: message.direction,
         });
+
+        if (this.state.cableState.doesDamageOrNotAt(newX,newY)){
+          this.broadcast("playerDamaged", {
+            sessionId: client.sessionId,
+            x: newX,
+            y: newY,
+          })
+        }
+
       }
+      
+
     });
 
     this.onMessage("getMapInfo", (client) => {
       client.send("mapInfo", this.state.getMapInfo());
     });
+
+    this.setSimulationInterval((delta: number) => {
+      this.state.cableState.timerMethod(delta);
+      const toggled = this.state.cableState.getAndClearMovedCables();
+      if (toggled.length > 0) {
+        this.broadcast("cablesUpdate", {cables:toggled});
+      }
+    })
+
   }
 
   onJoin(client: Client, options: any) {
