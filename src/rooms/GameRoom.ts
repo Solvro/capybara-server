@@ -9,6 +9,7 @@ export class GameRoom extends Room<RoomState> {
   onCreate(options: any) {
     this.state.spawnInitialCrates();
     this.state.spawnInitialDoorAndButtons();
+    this.state.spawninitialCables();
     this.onMessage("move", (client, message) => {
       const player = this.state.playerState.players.get(client.sessionId);
       if (!player) return;
@@ -62,9 +63,9 @@ export class GameRoom extends Room<RoomState> {
 
     this.setSimulationInterval((delta: number) => {
       this.state.cableState.timerMethod(delta);
-      const toggled = this.state.cableState.getAndClearMovedCables();
+      const toggled = (this.state.cableState as any).getAndClearToggledCables?.() ?? [];
       if (toggled.length > 0) {
-        this.broadcast("cablesUpdate", {cables:toggled});
+        this.broadcast("cablesUpdate", { cables: toggled });
       }
     })
 

@@ -18,6 +18,7 @@ export class CableState extends Schema{
     @type({map: Cable})
     cables = new MapSchema<Cable>();
 
+    private toggledCableIds = new Set<string>();
     private usedIds = new Set<number>()
     private nextAvailableId: number = 0;
     

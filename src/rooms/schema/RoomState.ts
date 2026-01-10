@@ -289,6 +289,10 @@ export class RoomState extends Schema {
     this.spawnCrate(6, 3);
     this.spawnCrate(7, 4);
   }
+  spawninitialCables(){
+    this.cableState.createCable(6, 4, 200, 1000, true);
+    this.cableState.createCable(8, 5, 3000, 2000, false);
+  }
 
   spawnInitialDoorAndButtons() {
     const door = this.doorState.createDoor("1", "red", 3, 0);
