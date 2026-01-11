@@ -212,7 +212,10 @@ export class RoomState extends Schema {
           x: cable.position.x,
           y: cable.position.y,
           damage: cable.damage,
-        }
+          damageDuration: cable.damageDuration,
+          safeDuration: cable.safeDuration,
+          timer: cable.timer,
+        };
       }),
       doors: Array.from(this.doorState.doors.values()).map((door) => ({
         doorId: door.id,
