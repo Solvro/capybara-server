@@ -22,7 +22,7 @@ export class RoomState extends Schema {
       this.width = jsonData.width;
       this.height = jsonData.height;
 
-      this.grid = new ArraySchema<string>(...jsonData.layout);
+      this.grid = new ArraySchema<string>(...jsonData.layout.flat());
 
       this._loadMechanics(jsonData.mechanics);
 
