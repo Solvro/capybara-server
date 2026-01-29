@@ -258,6 +258,23 @@ export class RoomState extends Schema {
     this.crateState.removeCrate(id);
   }
 
+  // proxy so callers can pass cable timing / initial state
+  spawnCable(x: number, y: number, damageMs?: number, safeMs?: number, startDamaging?: boolean){
+    this.cableState.createCable(x, y, damageMs, safeMs, startDamaging);
+  }
+  despawnCable(id: string){
+    this.cableState.removeCable(id);
+  }
+
+  // expose toggles/moves for broadcasting
+  getAndClearToggledCables() {
+    return this.cableState.getAndClearToggledCables();
+  }
+
+  getAndClearMovedCables() {
+    return this.cableState.getAndClearMovedCables();
+  }
+
   moveCrate(crateId: string, dx: number, dy: number): boolean {
     const crate = this.crateState.crates.get(crateId);
     if (!crate) return false;
@@ -280,21 +297,15 @@ export class RoomState extends Schema {
 
     return true;
   }
-  spawnCable(x: number, y: number){
-    this.cableState.createCable(x, y);
-  }
-  despawnCable(id: string){
-    this.cableState.removeCable(id);
-  }
-
   spawnInitialCrates() {
     this.spawnCrate(5, 3);
     this.spawnCrate(6, 3);
     this.spawnCrate(7, 4);
   }
   spawninitialCables(){
-    this.cableState.createCable(6, 4, 200, 1000, true);
-    this.cableState.createCable(8, 5, 3000, 2000, false);
+    // use spawnCable (forwards to CableState.createCable) so signatures stay consistent
+    this.spawnCable(6, 4, 200, 1000, true);
+    this.spawnCable(8, 5, 3000, 2000, false);
   }
 
   spawnInitialDoorAndButtons() {

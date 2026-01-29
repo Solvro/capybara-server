@@ -55,10 +55,13 @@ export class CableState extends Schema{
     setCableState(id: string, damage: boolean){
         const cable = this.cables.get(id);
         if (!cable) return;
-        cable.damage = damage;
+        if (cable.damage === damage) return;
 
+        cable.damage = damage;
         cable.timer = damage ? cable.damageDuration : cable.safeDuration;
 
+        // record toggle so room can broadcast update
+        this.toggledCableIds.add(id);
     }
 
     doesDamageOrNotAt(x: number, y: number): boolean{
@@ -82,6 +85,10 @@ export class CableState extends Schema{
     onRoomDispose() {
         this.cables.clear();
         this.usedIds.clear();
+        this.toggledCableIds.clear();
+        this.positionToCableId.clear();
+        this.movedCableIds.clear();
+        this.movedCableDirections.clear();
     }
     
     getCableAt(x: number, y: number){
@@ -123,8 +130,8 @@ export class CableState extends Schema{
         }
         return true;
     }
-    getAndClearMovedCables(): Cable[]{
-        const movedCables: any = [];
+    getAndClearMovedCables(): { cableId: string; direction: Direction }[]{
+        const movedCables: { cableId: string; direction: Direction }[] = [];
         this.movedCableIds.forEach((cableId) => {
             const cableDirection = this.movedCableDirections.get(cableId);
             if (cableDirection){
@@ -139,6 +146,31 @@ export class CableState extends Schema{
         return movedCables;
     }
 
+    // returns array of toggled cables with useful info and clears internal set
+    getAndClearToggledCables(): {
+        cableId: string;
+        damage: boolean;
+        x: number;
+        y: number;
+        timer: number;
+    }[] {
+        const toggled: any[] = [];
+        this.toggledCableIds.forEach((id) => {
+            const cable = this.cables.get(id);
+            if (cable) {
+                toggled.push({
+                    cableId: id,
+                    damage: cable.damage,
+                    x: cable.position.x,
+                    y: cable.position.y,
+                    timer: cable.timer,
+                });
+            }
+        });
+        this.toggledCableIds.clear();
+        return toggled;
+    }
+
     timerMethod(deltaMs: number){
         if(deltaMs <= 0) return;
         for (const [, cable] of this.cables){
@@ -146,10 +178,12 @@ export class CableState extends Schema{
                 cable.timer = cable.damage ? cable.damageDuration : cable.safeDuration;
             }
             cable.timer -= deltaMs;
-        while (cable.timer <= 0){
-            cable.damage = !cable.damage;
-            cable.timer += cable.damage ?  cable.damageDuration : cable.safeDuration;
+            while (cable.timer <= 0){
+                // toggle state and record toggle for broadcast
+                cable.damage = !cable.damage;
+                this.toggledCableIds.add(cable.id);
+                cable.timer += cable.damage ?  cable.damageDuration : cable.safeDuration;
+            }
         }
-    }
     }
 }
