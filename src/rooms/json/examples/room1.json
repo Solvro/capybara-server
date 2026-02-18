@@ -22,12 +22,28 @@
       "active": false
     },
     {
+      "type": "door",
+      "x": 3,
+      "y": 6,
+      "id": "door-green-1",
+      "color": "#33cc33",
+      "active": false
+    },
+    {
       "type": "button",
       "id": "button-red-1",
       "x": 8,
-      "y": 4,
+      "y": 3,
       "color": "#FF3B30",
       "doorId": "door-red-1"
+    },
+    {
+      "type": "button",
+      "id": "button-green-1",
+      "x": 3,
+      "y": 3,
+      "color": "#33cc33",
+      "doorId": "door-green-1"
     },
     {
       "type": "spikes",
